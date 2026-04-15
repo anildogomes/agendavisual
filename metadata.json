@@ -1,0 +1,5 @@
+{
+  "name": "AgendaVisual",
+  "description": "Plataforma completa de agendamento online para barbearias e estúdios de beleza com gestão SaaS.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
+}
