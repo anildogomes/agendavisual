@@ -1,12 +1,20 @@
 export interface BusinessInfo {
   id: string;
   slug: string;
+  email?: string;
   business_name: string;
   full_name: string;
   created_at: string;
   subscription_status: string;
   is_exempt: boolean;
   address?: string;
+  cep?: string;
+  city?: string;
+  neighborhood?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  state?: string;
   description?: string;
   whatsapp_phone?: string;
   logo_url?: string;
@@ -22,6 +30,8 @@ export interface BusinessInfo {
   notify_cancellations?: boolean;
   notify_daily_summary?: boolean;
   whatsapp_confirmation?: boolean;
+  reminder_time?: number;
+  reminder_message?: string;
 }
 
 export interface Service {
@@ -51,7 +61,7 @@ export interface Appointment {
   service_id: string;
   date: string;
   time: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'declined';
+  status: 'reserved' | 'completed' | 'no_show' | 'cancelled';
   cancellation_reason?: string;
 }
 
@@ -61,6 +71,8 @@ export interface Client {
   phone: string;
   business_id: string;
   status: 'active' | 'inactive';
+  notes?: string;
+  created_at?: string;
 }
 
 export interface ScheduleBlock {

@@ -39,7 +39,7 @@ export const mockAdminSession: Session = {
 
 export const mockBusiness = {
   id: MOCK_USER_ID,
-  name: 'Barbearia do Demo',
+  business_name: 'Barbearia do Demo',
   full_name: 'Usuário Demo',
   whatsapp_phone: '11999999999',
   address: 'Rua das Flores, 123 - São Paulo',
@@ -61,8 +61,10 @@ export const mockBusiness = {
 };
 
 export const mockClients = [
-  { id: 'c1', name: 'João Silva', phone: '11988887777', email: 'joao@email.com', created_at: new Date().toISOString() },
-  { id: 'c2', name: 'Maria Oliveira', phone: '11977776666', email: 'maria@email.com', created_at: new Date().toISOString() },
+  { id: 'c1', business_id: MOCK_USER_ID, name: 'João Silva', phone: '11988887777', status: 'active', notes: 'Prefere corte com tesoura', created_at: new Date().toISOString() },
+  { id: 'c2', business_id: MOCK_USER_ID, name: 'Maria Oliveira', phone: '11977776666', status: 'active', notes: 'Sempre pontual', created_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'c3', business_id: MOCK_USER_ID, name: 'Pedro Souza', phone: '11966665555', status: 'inactive', notes: 'Cliente antigo', created_at: new Date().toISOString() },
+  { id: 'c4', business_id: MOCK_USER_ID, name: 'Ana Costa', phone: '11955554444', status: 'inactive', notes: '', created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() },
 ];
 
 export const mockServices = [
@@ -118,7 +120,7 @@ export const mockAppointments = [
     professional_id: 'p1', 
     date: new Date().toISOString().split('T')[0], 
     time: '10:00',
-    status: 'confirmed'
+    status: 'reserved'
   },
   { 
     id: 'a2', 
@@ -128,7 +130,7 @@ export const mockAppointments = [
     professional_id: 'p2', 
     date: new Date().toISOString().split('T')[0], 
     time: '11:00',
-    status: 'pending'
+    status: 'reserved'
   },
 ];
 

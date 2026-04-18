@@ -17,16 +17,33 @@ CREATE TABLE businesses (
   slug TEXT UNIQUE NOT NULL,
   business_name TEXT NOT NULL,
   full_name TEXT NOT NULL,
+  description TEXT,
+  whatsapp_phone TEXT,
+  banner_url TEXT,
+  logo_url TEXT,
+  instagram_url TEXT,
+  facebook_url TEXT,
+  address TEXT,
+  cep TEXT,
   city TEXT,
-  state TEXT,
   neighborhood TEXT,
   street TEXT,
   number TEXT,
-  phone TEXT,
+  complement TEXT,
+  state TEXT,
   work_hours JSONB,
   subscription_status TEXT DEFAULT 'trialing',
   is_exempt BOOLEAN DEFAULT false,
-  logo_url TEXT,
+  min_advance_hours INTEGER DEFAULT 1,
+  view_window_days INTEGER DEFAULT 30,
+  manual_approval BOOLEAN DEFAULT false,
+  online_cancellation BOOLEAN DEFAULT true,
+  notify_new_appointments BOOLEAN DEFAULT true,
+  notify_cancellations BOOLEAN DEFAULT true,
+  notify_daily_summary BOOLEAN DEFAULT false,
+  whatsapp_confirmation BOOLEAN DEFAULT false,
+  reminder_time INTEGER DEFAULT 60,
+  reminder_message TEXT DEFAULT 'Olá {nome}, confirmamos seu agendamento para {data} às {horario}.',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   user_id UUID REFERENCES auth.users(id)
 );
@@ -59,6 +76,7 @@ CREATE TABLE clients (
   business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
+  notes TEXT,
   status TEXT DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -72,7 +90,7 @@ CREATE TABLE appointments (
   service_id UUID REFERENCES services(id) ON DELETE CASCADE,
   date DATE NOT NULL,
   time TEXT NOT NULL,
-  status TEXT DEFAULT 'pending', -- 'pending', 'confirmed', 'cancelled', 'declined'
+  status TEXT DEFAULT 'reserved', -- 'reserved', 'completed', 'no_show', 'cancelled'
   cancellation_reason TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -80,15 +80,15 @@ const ReportsPage: React.FC = () => {
 
     // Cálculos para os gráficos
     const stats = useMemo(() => {
-        const confirmedAppts = appointments.filter(a => a.status === 'confirmed');
+        const completedAppts = appointments.filter(a => a.status === 'completed');
         
-        const totalRevenue = confirmedAppts.reduce((acc, curr) => {
+        const totalRevenue = completedAppts.reduce((acc, curr) => {
             const service = services.find(s => s.id === curr.service_id);
             return acc + (service?.price || 0);
         }, 0);
 
         // Agrupamento por dia para o gráfico de área
-        const revenueByDay = confirmedAppts.reduce((acc: any, curr) => {
+        const revenueByDay = completedAppts.reduce((acc: any, curr) => {
             const date = new Date(curr.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
             const service = services.find(s => s.id === curr.service_id);
             acc[date] = (acc[date] || 0) + (service?.price || 0);
@@ -98,7 +98,7 @@ const ReportsPage: React.FC = () => {
         const areaChartData = Object.entries(revenueByDay).map(([name, value]) => ({ name, value }));
 
         const revenueByService = services.map(service => {
-            const count = appointments.filter(a => a.service_id === service.id && a.status === 'confirmed').length;
+            const count = appointments.filter(a => a.service_id === service.id && a.status === 'completed').length;
             return {
                 name: service.name,
                 value: count * service.price
@@ -112,12 +112,12 @@ const ReportsPage: React.FC = () => {
 
         // Insights lógicos
         const busiestDay = Object.entries(revenueByDay).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || 'N/A';
-        const avgTicket = confirmedAppts.length > 0 ? totalRevenue / confirmedAppts.length : 0;
+        const avgTicket = completedAppts.length > 0 ? totalRevenue / completedAppts.length : 0;
 
         return {
             totalRevenue,
             totalAppointments: appointments.length,
-            confirmedAppointments: confirmedAppts.length,
+            confirmedAppointments: completedAppts.length,
             areaChartData,
             revenueByService,
             apptsByProfessional,

@@ -182,16 +182,16 @@ export const IconLink = LinkIcon;
 
 // PHONE INPUT COMPONENT
 const COUNTRY_CODES = [
-    { code: '+55', country: 'BR', flag: '🇧🇷', mask: '(##) #####-####' },
-    { code: '+1', country: 'US', flag: '🇺🇸', mask: '(###) ###-####' },
-    { code: '+351', country: 'PT', flag: '🇵🇹', mask: '### ### ###' },
-    { code: '+44', country: 'UK', flag: '🇬🇧', mask: '#### ###### ' },
-    { code: '+34', country: 'ES', flag: '🇪🇸', mask: '### ### ###' },
-    { code: '+33', country: 'FR', flag: '🇫🇷', mask: '## ## ## ## ##' },
-    { code: '+49', country: 'DE', flag: '🇩🇪', mask: '#### #######' },
-    { code: '+39', country: 'IT', flag: '🇮🇹', mask: '### #######' },
-    { code: '+81', country: 'JP', flag: '🇯🇵', mask: '## #### ####' },
-    { code: '+86', country: 'CN', flag: '🇨🇳', mask: '### #### ####' },
+    { code: '+55', country: 'BR', flag: '🇧🇷', mask: '(XX) XXXXX-XXXX' },
+    { code: '+1', country: 'US', flag: '🇺🇸', mask: '(XXX) XXX-XXXX' },
+    { code: '+351', country: 'PT', flag: '🇵🇹', mask: 'XXX XXX XXX' },
+    { code: '+44', country: 'UK', flag: '🇬🇧', mask: 'XXXX XXXXXX ' },
+    { code: '+34', country: 'ES', flag: '🇪🇸', mask: 'XXX XXX XXX' },
+    { code: '+33', country: 'FR', flag: '🇫🇷', mask: 'XX XX XX XX XX' },
+    { code: '+49', country: 'DE', flag: '🇩🇪', mask: 'XXXX XXXXXXX' },
+    { code: '+39', country: 'IT', flag: '🇮🇹', mask: 'XXX XXXXXXX' },
+    { code: '+81', country: 'JP', flag: '🇯🇵', mask: 'XX XXXX XXXX' },
+    { code: '+86', country: 'CN', flag: '🇨🇳', mask: 'XXX XXXX XXXX' },
 ];
 
 interface PhoneInputProps {

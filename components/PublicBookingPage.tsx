@@ -135,7 +135,7 @@ const PublicBookingPage: React.FC = () => {
                     .eq('professional_id', selectedProfessional.id)
                     .eq('date', dateStr)
                     .neq('status', 'cancelled')
-                    .neq('status', 'declined'),
+                    .neq('status', 'cancelled'),
                 supabase.from('blocks')
                     .select('start_time, end_time')
                     .eq('business_id', business.id)
@@ -322,7 +322,7 @@ const PublicBookingPage: React.FC = () => {
                 professional_id: selectedProfessional.id,
                 date: selectedDate.toISOString().split('T')[0],
                 time: selectedTime,
-                status: 'confirmed'
+                status: 'reserved'
             };
 
             setDemoData(prev => ({
@@ -376,7 +376,7 @@ const PublicBookingPage: React.FC = () => {
                     service_id: selectedService.id,
                     date: dateStr,
                     time: selectedTime,
-                    status: 'confirmed'
+                    status: 'reserved'
                 })
                 .select().single();
 
@@ -963,7 +963,7 @@ const PublicBookingPage: React.FC = () => {
                                             <div className="flex justify-between items-start">
                                                 <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{app.service.name}</h4>
                                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${
-                                                    app.status === 'confirmed'
+                                                    app.status === 'reserved'
                                                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' 
                                                     : app.status === 'completed' 
                                                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -971,7 +971,7 @@ const PublicBookingPage: React.FC = () => {
                                                     ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                     : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
                                                 }`}>
-                                                    {app.status === 'confirmed' ? 'Reservado' : app.status === 'cancelled' ? 'Desistiu' : app.status}
+                                                    {app.status === 'reserved' ? 'Reservado' : app.status === 'cancelled' ? 'Desistiu' : app.status === 'completed' ? 'Concluído' : app.status === 'no_show' ? 'Não Veio' : app.status}
                                                 </span>
                                             </div>
                                             

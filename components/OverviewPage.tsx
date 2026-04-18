@@ -11,7 +11,9 @@ import {
   Scissors,
   User,
   MessageCircle,
-  LayoutDashboard
+  LayoutDashboard,
+  UserCheck,
+  UserPlus
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Appointment, Service, Client } from '../types';
@@ -70,16 +72,29 @@ const OverviewPage: React.FC = () => {
     const stats = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
         const todayApps = appointments.filter(a => a.date === today);
-        const confirmedToday = todayApps.filter(a => a.status === 'confirmed');
+        const completedToday = todayApps.filter(a => a.status === 'completed');
+        const reservedToday = todayApps.filter(a => a.status === 'reserved');
         
-        const revenueToday = confirmedToday.reduce((acc, curr) => {
+        const revenueToday = completedToday.reduce((acc, curr) => {
             const service = services.find(s => s.id === curr.service_id);
             return acc + (service?.price || 0);
         }, 0);
 
+        // Clientes Novos (Mês)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const newClients = clients.filter(c => {
+            if (!c.created_at) return false;
+            return new Date(c.created_at) >= thirtyDaysAgo;
+        }).length;
+
+        const activeClients = clients.filter(c => c.status === 'active').length;
+
         return {
             todayCount: todayApps.length,
             totalClients: clients.length,
+            activeClients,
+            newClients,
             revenueToday,
             upcoming: todayApps
                 .filter(a => a.status !== 'cancelled')
@@ -100,36 +115,48 @@ const OverviewPage: React.FC = () => {
     ];
 
     return (
-        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 animate-fade-in">
+        <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
             {/* KPI Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
                 <StatCard 
-                    title="Agendamentos Hoje" 
+                    title="Agendamentos" 
                     value={stats.todayCount.toString()} 
                     trend="+12%" 
                     icon={<Calendar className="w-5 h-5" />} 
                 />
                 <StatCard 
-                    title="Receita Hoje" 
-                    value={`R$ ${stats.revenueToday.toFixed(2)}`} 
+                    title="Receita" 
+                    value={`R$ ${stats.revenueToday.toFixed(0)}`} 
                     trend="+8%" 
                     icon={<DollarSign className="w-5 h-5" />} 
                 />
                 <StatCard 
-                    title="Total de Clientes" 
+                    title="Clientes" 
                     value={stats.totalClients.toString()} 
                     trend="+5%" 
                     icon={<Users className="w-5 h-5" />} 
                 />
                 <StatCard 
-                    title="Taxa de Ocupação" 
+                    title="Ativos" 
+                    value={stats.activeClients.toString()} 
+                    trend="+3%" 
+                    icon={<UserCheck className="w-5 h-5" />} 
+                />
+                <StatCard 
+                    title="Novos" 
+                    value={stats.newClients.toString()} 
+                    trend="+15%" 
+                    icon={<UserPlus className="w-5 h-5" />} 
+                />
+                <StatCard 
+                    title="Ocupação" 
                     value="84%" 
                     trend="+2%" 
                     icon={<TrendingUp className="w-5 h-5" />} 
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
                 {/* Chart Section */}
                 <div className="lg:col-span-2 bg-white dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                     <div className="flex items-center justify-between">
@@ -195,7 +222,7 @@ const OverviewPage: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                                             {/* We'd normally find the client name here, but for the preview we'll use a placeholder or the ID if not found */}
-                                            Cliente #{app.client_id?.substring(0, 4) || '....'}
+                                            Cliente X{app.client_id?.substring(0, 4) || '....'}
                                         </p>
                                         <p className="text-[10px] text-slate-700 dark:text-slate-400 font-bold uppercase tracking-wider">
                                             Confirmado
@@ -227,19 +254,19 @@ const OverviewPage: React.FC = () => {
 };
 
 const StatCard: React.FC<{ title: string, value: string, trend: string, icon: React.ReactNode }> = ({ title, value, trend, icon }) => (
-    <div className="bg-white dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-slate-900/50 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 sm:space-y-4">
         <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 scale-90 sm:scale-100">
                 {icon}
             </div>
-            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
-                <ArrowUpRight className="w-3 h-3" />
+            <span className="flex items-center gap-1 text-[8px] sm:text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
+                <ArrowUpRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 {trend}
             </span>
         </div>
-        <div className="space-y-1">
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{title}</p>
-            <h4 className="text-2xl font-bold text-slate-950 dark:text-slate-50">{value}</h4>
+        <div className="space-y-0.5 sm:space-y-1">
+            <p className="text-[9px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider truncate">{title}</p>
+            <h4 className="text-lg sm:text-2xl font-bold text-slate-950 dark:text-slate-50 truncate">{value}</h4>
         </div>
     </div>
 );

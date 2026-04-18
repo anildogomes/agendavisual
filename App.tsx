@@ -12,7 +12,7 @@ import { Check, X, Bell, Calendar } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { Session } from '@supabase/supabase-js';
 import { mockSession, mockAdminSession, mockBusiness, mockClients, mockServices, mockProfessionals, mockAppointments } from './mockData';
-import { Appointment, Service, Professional, Client, BusinessInfo } from './types';
+import { Appointment, Service, Professional, Client, BusinessInfo, ScheduleBlock } from './types';
 
 // --- DEMO DATA CONTEXT ---
 interface DemoData {
@@ -21,6 +21,7 @@ interface DemoData {
     services: Service[];
     professionals: Professional[];
     business: BusinessInfo;
+    blocks: ScheduleBlock[];
 }
 
 const initialDemoData: DemoData = {
@@ -28,7 +29,8 @@ const initialDemoData: DemoData = {
     clients: mockClients as any,
     services: mockServices as any,
     professionals: mockProfessionals as any,
-    business: mockBusiness as any
+    business: mockBusiness as any,
+    blocks: []
 };
 
 type DemoDataContextType = {

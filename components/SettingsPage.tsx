@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Building2, 
-  Clock, 
   Palette, 
+  Clock,
   Calendar, 
   Bell, 
   ShieldCheck, 
@@ -23,30 +22,43 @@ import {
   Lock,
   Camera,
   Link as LinkIcon,
-  ChevronDown
+  ChevronDown,
+  CreditCard,
+  Building
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { useToast } from '../App';
+import { useToast, useDemoData } from '../App';
 import { BusinessInfo } from '../types';
 import { PhoneInput } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 
-type TabType = 'perfil' | 'horarios' | 'aparencia' | 'agendamento' | 'notificacoes' | 'seguranca';
+type TabType = 'perfil' | 'endereco' | 'horarios' | 'notificacoes' | 'assinatura';
 
 const SettingsPage: React.FC = () => {
+    const { isDemo, demoData, setDemoData } = useDemoData();
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('perfil');
-    const [showMobileMenu, setShowMobileMenu] = useState(true);
     const [copied, setCopied] = useState(false);
     const { addToast } = useToast();
 
     useEffect(() => {
         const fetchBusinessInfo = async () => {
             setLoading(true);
+
+            if (isDemo) {
+                setBusinessInfo(demoData.business);
+                setLoading(false);
+                return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            if (!user) {
+                setLoading(false);
+                return;
+            }
 
             const { data, error } = await supabase
                 .from('businesses')
@@ -57,29 +69,65 @@ const SettingsPage: React.FC = () => {
             if (error) {
                 addToast('Erro ao carregar configurações.', 'error');
             } else {
-                setBusinessInfo(data);
+                if (data) {
+                    setBusinessInfo(data);
+                } else {
+                    // Initialize with defaults if no record exists
+                    setBusinessInfo({
+                        id: user.id,
+                        email: user.email,
+                        business_name: '',
+                        full_name: user.user_metadata?.full_name || '',
+                        slug: '',
+                        created_at: new Date().toISOString(),
+                        subscription_status: 'trial',
+                        is_exempt: false,
+                        work_hours: {},
+                        reminder_time: 60,
+                        reminder_message: 'Olá {nome}, passando para lembrar do seu agendamento hoje às {horario}.'
+                    } as BusinessInfo);
+                }
             }
             setLoading(false);
         };
 
         fetchBusinessInfo();
-    }, [addToast]);
+    }, [addToast, isDemo, demoData.business]);
 
     const handleSave = async () => {
         if (!businessInfo) return;
 
         setSaving(true);
         
+        if (isDemo) {
+            setDemoData(prev => ({
+                ...prev,
+                business: businessInfo
+            }));
+            addToast('Configurações salvas!', 'success');
+            setSaving(false);
+            return;
+        }
+
+        // Add 'name' fallback field to prevent not-null constraint violation
+        // Some older schemas or initial table creations might strictly expect the 'name' and 'email' columns
+        const payloadToSave = {
+            ...businessInfo,
+            name: businessInfo.business_name || 'My Business',
+            email: businessInfo.email || ''
+        };
+
         const { error } = await supabase
             .from('businesses')
-            .update(businessInfo)
+            .upsert(payloadToSave)
             .eq('id', businessInfo.id);
 
         if (error) {
             console.error('Erro ao salvar:', error);
-            addToast('Erro ao salvar alterações: ' + error.message, 'error');
+            addToast('Erro ao salvar: ' + error.message, 'error');
         } else {
-            addToast('Configurações salvas com sucesso!', 'success');
+            addToast('Configurações salvas!', 'success');
+            window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
         }
         setSaving(false);
     };
@@ -89,6 +137,24 @@ const SettingsPage: React.FC = () => {
         setCopied(true);
         addToast('Link copiado!', 'success');
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 1024 * 1024) { // 1MB limit for base64 performance
+                addToast('A imagem deve ter menos de 1MB', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setBusinessInfo(prev => ({
+                    ...(prev || {} as BusinessInfo),
+                    logo_url: reader.result as string
+                }));
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const updateWorkHours = (day: string, intervals: { start: string, end: string }[] | null) => {
@@ -119,18 +185,17 @@ const SettingsPage: React.FC = () => {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
                 <Loader2 className="w-6 h-6 text-gold-500 animate-spin" />
-                <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Carregando preferências</p>
+                <p className="text-slate-400 text-xs font-medium uppercase tracking-widest">Carregando</p>
             </div>
         );
     }
 
     const tabs = [
-        { id: 'perfil', label: 'Perfil', icon: Building2, desc: 'Informações básicas e contato' },
-        { id: 'horarios', label: 'Horários', icon: Clock, desc: 'Disponibilidade de atendimento' },
-        { id: 'aparencia', label: 'Aparência', icon: Palette, desc: 'Personalização visual e marca' },
-        { id: 'agendamento', label: 'Agendamento', icon: Calendar, desc: 'Regras e políticas' },
-        { id: 'notificacoes', label: 'Notificações', icon: Bell, desc: 'Alertas e comunicações' },
-        { id: 'seguranca', label: 'Segurança', icon: ShieldCheck, desc: 'Conta e privacidade' },
+        { id: 'perfil', label: 'Perfil', icon: Globe, desc: 'Identidade e marca' },
+        { id: 'endereco', label: 'Endereço', icon: MapPin, desc: 'Localização física' },
+        { id: 'horarios', label: 'Horários', icon: Clock, desc: 'Sua disponibilidade' },
+        { id: 'notificacoes', label: 'Notificações', icon: Bell, desc: 'Lembretes e avisos' },
+        { id: 'assinatura', label: 'Assinatura', icon: CreditCard, desc: 'Seu plano e faturas' },
     ];
 
     const daysOfWeek = [
@@ -153,103 +218,40 @@ const SettingsPage: React.FC = () => {
             {/* Header Section */}
             <div className="flex items-center justify-between gap-6 mb-12">
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        {!showMobileMenu && (
-                            <button 
-                                onClick={() => setShowMobileMenu(true)}
-                                className="md:hidden p-2 -ml-2 text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-                            >
-                                <ChevronRight className="w-5 h-5 rotate-180" />
-                            </button>
-                        )}
-                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
-                            {(!showMobileMenu && activeTabLabel) ? activeTabLabel : 'Configurações'}
-                        </h1>
-                    </div>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
-                        {showMobileMenu ? 'Gerencie as preferências do seu estabelecimento.' : 'Ajuste os detalhes desta seção.'}
+                        Gerencie as preferências do seu estabelecimento.
                     </p>
                 </div>
-                {!showMobileMenu && (
-                    <button 
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-xl font-semibold text-sm hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
-                    >
-                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        <span className="hidden sm:inline">{saving ? 'Salvando...' : 'Salvar'}</span>
-                        <span className="sm:hidden">{saving ? '...' : 'Salvar'}</span>
-                    </button>
-                )}
             </div>
 
-            {/* Mobile Menu (Drill-down pattern) */}
-            <AnimatePresence mode="wait">
-                {showMobileMenu ? (
-                    <motion.div 
-                        key="mobile-menu"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className="md:hidden space-y-3"
-                    >
-                        {tabs.map((tab) => (
+            {/* Navigation Tabs (Responsive) */}
+            <div className="mb-10 -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-2">
+                    {tabs.map((tab) => {
+                        const isActive = activeTab === tab.id;
+                        return (
                             <button
                                 key={tab.id}
                                 onClick={() => {
                                     setActiveTab(tab.id as TabType);
-                                    setShowMobileMenu(false);
                                 }}
-                                className="w-full flex items-center gap-4 p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm active:scale-[0.98] transition-all text-left"
+                                className={`
+                                    flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap outline-none flex-shrink-0
+                                    ${isActive 
+                                        ? 'bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 shadow-md' 
+                                        : 'bg-slate-100/50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80'}
+                                `}
                             >
-                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400">
-                                    <tab.icon className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1 space-y-0.5">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">{tab.label}</h3>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">{tab.desc}</p>
-                                </div>
-                                <ChevronRight className="w-4 h-4 text-slate-300" />
+                                <tab.icon className={`w-4 h-4 ${isActive ? 'text-white dark:text-slate-900' : 'text-slate-500'}`} />
+                                <span>{tab.label}</span>
                             </button>
-                        ))}
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="mobile-content"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="md:hidden"
-                    >
-                        {/* Content rendered below in main */}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Desktop Pill Tabs */}
-            <div className="hidden md:flex mb-10 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl items-center gap-1">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => {
-                            setActiveTab(tab.id as TabType);
-                            setShowMobileMenu(false); // Sync state even if hidden
-                        }}
-                        className={`
-                            flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap
-                            ${activeTab === tab.id 
-                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}
-                        `}
-                    >
-                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-gold-500' : 'text-slate-400'}`} />
-                        <span>{tab.label}</span>
-                    </button>
-                ))}
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Main Content Area */}
-            <main className={`${showMobileMenu ? 'hidden md:block' : 'block'}`}>
+            <main className="block">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeTab}
@@ -260,430 +262,416 @@ const SettingsPage: React.FC = () => {
                         className="space-y-10"
                     >
                         {activeTab === 'perfil' && (
-                            <div className="space-y-10">
-                                {/* Link Section - The "Special Object" */}
-                                <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm">
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="p-2.5 bg-gold-500/10 rounded-xl">
-                                            <LinkIcon className="w-5 h-5 text-gold-600 dark:text-gold-400" />
+                            <div className="space-y-12">
+                                <section className="space-y-8">
+                                    <div className="space-y-1">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Informações Básicas</h3>
+                                        <p className="text-xs text-slate-500">Gerencie a identidade visual e dados do negócio.</p>
+                                    </div>
+
+                                    {/* Logo Section */}
+                                    <div className="flex items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800/50">
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            onChange={handleFileChange} 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                        />
+                                        <div 
+                                            className="relative group cursor-pointer"
+                                            onClick={() => fileInputRef.current?.click()}
+                                        >
+                                            <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden transition-all group-hover:border-gold-500/50">
+                                                {businessInfo?.logo_url ? (
+                                                    <img 
+                                                        src={businessInfo.logo_url} 
+                                                        alt="Logo" 
+                                                        className="w-full h-full object-cover"
+                                                        referrerPolicy="no-referrer"
+                                                    />
+                                                ) : (
+                                                    <span className="text-3xl font-black text-slate-300 dark:text-slate-700">
+                                                        {businessInfo?.business_name 
+                                                            ? businessInfo.business_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                                                            : 'BN'}
+                                                    </span>
+                                                )}
+                                                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                    <Camera className="w-6 h-6 text-white" />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="space-y-0.5">
-                                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Link de Agendamento</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">Compartilhe este endereço com seus clientes.</p>
+                                        <div className="flex-1 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Logo do Negócio</label>
+                                            <div className="flex flex-col gap-2">
+                                                <button 
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="w-fit px-4 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+                                                >
+                                                    <Plus className="w-3 h-3" />
+                                                    Selecionar Imagem
+                                                </button>
+                                                <p className="text-[10px] text-slate-400 italic">Clique na imagem ou no botão para alterar a logo.</p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 truncate">
-                                            {publicUrl}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome do Negócio</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.business_name || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), business_name: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none transition-all dark:text-slate-200 font-medium"
+                                                placeholder="Sua Barbearia"
+                                            />
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome do Proprietário</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.full_name || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), full_name: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none transition-all dark:text-slate-200 font-medium"
+                                                placeholder="Nome completo"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <PhoneInput 
+                                                label="Telefone / WhatsApp"
+                                                value={businessInfo?.whatsapp_phone || ''}
+                                                onChange={(val) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), whatsapp_phone: val }))}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Link Personalizado</label>
+                                            <div className="flex">
+                                                <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 text-[11px] font-mono">
+                                                    agendavisual.com.br/#/
+                                                </span>
+                                                <input 
+                                                    type="text" 
+                                                    value={businessInfo?.slug || ''}
+                                                    onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
+                                                    className="flex-1 min-w-0 px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-r-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none transition-all dark:text-slate-200 font-mono"
+                                                    placeholder="slug"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <div className="bg-slate-950 rounded-2xl p-6 border border-slate-800 relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                                        <Globe className="w-32 h-32 text-gold-500" />
+                                    </div>
+                                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                        <div className="space-y-1">
+                                            <h4 className="text-white font-bold italic">Seu endereço na web</h4>
+                                            <p className="text-xs text-slate-500">Compartilhe este link para receber agendamentos.</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-slate-400 max-w-[240px] truncate">
+                                                {publicUrl}
+                                            </div>
                                             <button 
                                                 onClick={() => copyToClipboard(publicUrl)}
-                                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-95"
+                                                className="p-2.5 bg-white text-slate-950 rounded-lg hover:bg-slate-100 transition-all active:scale-95 shadow-sm"
                                             >
-                                                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                                <span>{copied ? 'Copiado' : 'Copiar'}</span>
+                                                {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                                             </button>
-                                            <a 
-                                                href={publicUrl} 
-                                                target="_blank" 
-                                                rel="noreferrer"
-                                                className="p-3 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-xl hover:opacity-90 transition-all active:scale-95"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                            </a>
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        )}
 
-                                {/* Basic Info Form */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Nome do Negócio</label>
-                                        <input 
-                                            type="text" 
-                                            value={businessInfo?.business_name || ''}
-                                            onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, business_name: e.target.value } : null)}
-                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 outline-none transition-all dark:text-slate-200"
-                                            placeholder="Ex: Barbearia Premium"
-                                        />
+                        {activeTab === 'endereco' && (
+                            <div className="space-y-10">
+                                <div className="space-y-6">
+                                    <div className="space-y-1">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Localização</h3>
+                                        <p className="text-xs text-slate-500">Onde seus clientes devem comparecer.</p>
                                     </div>
-                                    <div className="space-y-2">
-                                        <PhoneInput 
-                                            label="WhatsApp de Contato"
-                                            value={businessInfo?.whatsapp_phone || ''}
-                                            onChange={(val) => setBusinessInfo(prev => prev ? { ...prev, whatsapp_phone: val } : null)}
-                                        />
-                                    </div>
-                                    <div className="md:col-span-2 space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Endereço</label>
-                                        <div className="relative">
-                                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                                        <div className="md:col-span-12 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Logradouro (Rua)</label>
                                             <input 
                                                 type="text" 
-                                                value={businessInfo?.address || ''}
-                                                onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, address: e.target.value } : null)}
-                                                className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 outline-none transition-all dark:text-slate-200"
-                                                placeholder="Rua, Número, Bairro, Cidade"
+                                                value={businessInfo?.street || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), street: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none dark:text-slate-200 font-medium"
+                                                placeholder="Ex: Avenida das Flores"
                                             />
                                         </div>
-                                    </div>
-                                    <div className="md:col-span-2 space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Sobre o Negócio</label>
-                                        <textarea 
-                                            value={businessInfo?.description || ''}
-                                            onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, description: e.target.value } : null)}
-                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 outline-none transition-all min-h-[120px] resize-none dark:text-slate-200"
-                                            placeholder="Descreva brevemente seus serviços e diferenciais..."
-                                        />
+                                        <div className="md:col-span-4 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Número</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.number || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), number: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none dark:text-slate-200 font-medium"
+                                                placeholder="123"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-8 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Complemento</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.complement || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), complement: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none dark:text-slate-200 font-medium"
+                                                placeholder="Sala, Andar, Referência"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-4 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Bairro</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.neighborhood || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), neighborhood: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none dark:text-slate-200 font-medium"
+                                                placeholder="Centro"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-4 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cidade</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.city || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), city: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none dark:text-slate-200 font-medium"
+                                                placeholder="Cidade"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-4 space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Estado</label>
+                                            <input 
+                                                type="text" 
+                                                value={businessInfo?.state || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), state: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none dark:text-slate-200 font-medium"
+                                                placeholder="UF"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'horarios' && (
-                            <div className="space-y-8">
-                                <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl p-4 flex gap-3">
-                                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                                    <p className="text-xs text-amber-700 dark:text-amber-400/80 leading-relaxed">
-                                        Defina os horários em que sua agenda estará aberta. Você pode adicionar múltiplos turnos para o mesmo dia.
-                                    </p>
-                                </div>
-
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                    {daysOfWeek.map((day) => {
-                                        const intervals = businessInfo?.work_hours[day.id] || [];
-                                        const isOpen = intervals.length > 0;
-
-                                        return (
-                                            <div key={day.id} className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start gap-6 group">
-                                                <div className="w-32 shrink-0 flex items-center gap-3">
-                                                    <button 
-                                                        onClick={() => updateWorkHours(day.id, isOpen ? null : [{ start: '09:00', end: '18:00' }])}
-                                                        className={`w-9 h-5 rounded-full relative transition-all ${isOpen ? 'bg-gold-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                                    >
-                                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${isOpen ? 'left-4.5' : 'left-0.5'}`} />
-                                                    </button>
-                                                    <span className={`text-sm font-bold ${isOpen ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
-                                                        {day.label}
-                                                    </span>
-                                                </div>
-
-                                                <div className="flex-1 space-y-3">
-                                                    {isOpen ? (
-                                                        <div className="flex flex-wrap gap-3">
-                                                            {intervals.map((interval: any, idx: number) => (
-                                                                <div key={idx} className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in duration-200">
-                                                                    <input 
-                                                                        type="time" 
-                                                                        value={interval.start}
-                                                                        onChange={(e) => {
-                                                                            const newInts = [...intervals];
-                                                                            newInts[idx].start = e.target.value;
-                                                                            updateWorkHours(day.id, newInts);
-                                                                        }}
-                                                                        className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"
-                                                                    />
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">às</span>
-                                                                    <input 
-                                                                        type="time" 
-                                                                        value={interval.end}
-                                                                        onChange={(e) => {
-                                                                            const newInts = [...intervals];
-                                                                            newInts[idx].end = e.target.value;
-                                                                            updateWorkHours(day.id, newInts);
-                                                                        }}
-                                                                        className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"
-                                                                    />
-                                                                    <button 
-                                                                        onClick={() => removeInterval(day.id, idx)}
-                                                                        className="ml-1 p-1 text-slate-400 hover:text-red-500 transition-colors"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </div>
-                                                            ))}
-                                                            <button 
-                                                                onClick={() => addInterval(day.id)}
-                                                                className="flex items-center gap-1.5 px-3 py-2 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-gold-500 hover:border-gold-500 transition-all text-[10px] font-bold uppercase"
-                                                            >
-                                                                <Plus className="w-3.5 h-3.5" />
-                                                                Turno
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-xs text-slate-400 italic">Fechado para agendamentos</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'aparencia' && (
-                            <div className="space-y-12">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                    {/* Logo Upload */}
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Logo</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">Sua marca principal no topo da página.</p>
-                                        </div>
-                                        <div className="relative group aspect-square max-w-[140px] bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden flex items-center justify-center">
-                                            {businessInfo?.logo_url ? (
-                                                <img 
-                                                    src={businessInfo.logo_url} 
-                                                    alt="Logo" 
-                                                    className="w-full h-full object-cover"
-                                                    referrerPolicy="no-referrer"
-                                                />
-                                            ) : (
-                                                <Camera className="w-7 h-7 text-slate-300" />
-                                            )}
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                                                <span className="text-white text-[10px] font-bold uppercase tracking-widest">Alterar</span>
-                                            </div>
-                                        </div>
-                                        <input 
-                                            type="text" 
-                                            value={businessInfo?.logo_url || ''}
-                                            onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, logo_url: e.target.value } : null)}
-                                            placeholder="URL da imagem da logo"
-                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-mono outline-none focus:ring-2 focus:ring-gold-500/20 dark:text-slate-300"
-                                        />
-                                    </div>
-
-                                    {/* Banner Upload */}
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Banner</h3>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">Imagem de destaque no fundo da página.</p>
-                                        </div>
-                                        <div className="relative group h-[140px] bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden flex items-center justify-center">
-                                            {businessInfo?.banner_url ? (
-                                                <img 
-                                                    src={businessInfo.banner_url} 
-                                                    alt="Banner" 
-                                                    className="w-full h-full object-cover"
-                                                    referrerPolicy="no-referrer"
-                                                />
-                                            ) : (
-                                                <Camera className="w-7 h-7 text-slate-300" />
-                                            )}
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                                                <span className="text-white text-[10px] font-bold uppercase tracking-widest">Alterar</span>
-                                            </div>
-                                        </div>
-                                        <input 
-                                            type="text" 
-                                            value={businessInfo?.banner_url || ''}
-                                            onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, banner_url: e.target.value } : null)}
-                                            placeholder="URL da imagem do banner"
-                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-mono outline-none focus:ring-2 focus:ring-gold-500/20 dark:text-slate-300"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Social Links */}
-                                <div className="space-y-6">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Redes Sociais</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-slate-400">
-                                                <Globe className="w-4 h-4" />
-                                                <span className="text-[10px] font-bold uppercase tracking-widest">Instagram</span>
-                                            </div>
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">@</span>
-                                                <input 
-                                                    type="text" 
-                                                    value={businessInfo?.instagram_url || ''}
-                                                    onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, instagram_url: e.target.value } : null)}
-                                                    className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none font-bold dark:text-slate-200"
-                                                    placeholder="seu_perfil"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-slate-400">
-                                                <Globe className="w-4 h-4" />
-                                                <span className="text-[10px] font-bold uppercase tracking-widest">Facebook</span>
-                                            </div>
-                                            <input 
-                                                type="text" 
-                                                value={businessInfo?.facebook_url || ''}
-                                                onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, facebook_url: e.target.value } : null)}
-                                                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none font-bold dark:text-slate-200"
-                                                placeholder="facebook.com/seu_negocio"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'agendamento' && (
                             <div className="space-y-10">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Antecedência Mínima</label>
-                                            <span className="text-[10px] font-bold text-gold-600 bg-gold-500/10 px-2 py-0.5 rounded-full">Horas</span>
-                                        </div>
-                                        <input 
-                                            type="number" 
-                                            value={(businessInfo as any)?.min_advance_hours || ''}
-                                            onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, min_advance_hours: parseInt(e.target.value) } : null)}
-                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gold-500/20 font-bold dark:text-slate-200"
-                                            placeholder="Ex: 2"
-                                        />
-                                        <p className="text-[10px] text-slate-400 italic">Tempo mínimo antes do horário para permitir agendamento.</p>
+                                <section className="space-y-6">
+                                    <div className="space-y-1">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Expediente</h3>
+                                        <p className="text-xs text-slate-500">Ative os dias da semana e defina os horários de abertura, fechamento e intervalos.</p>
                                     </div>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Janela de Visualização</label>
-                                            <span className="text-[10px] font-bold text-gold-600 bg-gold-500/10 px-2 py-0.5 rounded-full">Dias</span>
-                                        </div>
-                                        <input 
-                                            type="number" 
-                                            value={(businessInfo as any)?.view_window_days || ''}
-                                            onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, view_window_days: parseInt(e.target.value) } : null)}
-                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gold-500/20 font-bold dark:text-slate-200"
-                                            placeholder="Ex: 30"
-                                        />
-                                        <p className="text-[10px] text-slate-400 italic">Quantos dias no futuro o cliente pode ver horários.</p>
-                                    </div>
-                                </div>
 
-                                <div className="space-y-4 pt-6 border-t border-slate-100 dark:border-slate-800">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Políticas Adicionais</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                                            <div className="space-y-0.5">
-                                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">Aprovação Manual</span>
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Exigir sua confirmação para cada vaga.</p>
-                                            </div>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={(businessInfo as any)?.manual_approval || false}
-                                                onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, manual_approval: e.target.checked } : null)}
-                                                className="w-4 h-4 rounded border-slate-300 text-gold-500 focus:ring-gold-500" 
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                                            <div className="space-y-0.5">
-                                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">Cancelamento Online</span>
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Permitir que o cliente cancele sozinho.</p>
-                                            </div>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={(businessInfo as any)?.online_cancellation !== false}
-                                                onChange={(e) => setBusinessInfo(prev => prev ? { ...prev, online_cancellation: e.target.checked } : null)}
-                                                className="w-4 h-4 rounded border-slate-300 text-gold-500 focus:ring-gold-500" 
-                                            />
-                                        </label>
+                                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/50 shadow-sm">
+                                        {daysOfWeek.map((day) => {
+                                            const intervals = businessInfo?.work_hours[day.id] || [];
+                                            const isOpen = intervals.length > 0;
+
+                                            return (
+                                                <div key={day.id} className="p-5 flex flex-col md:flex-row md:items-start gap-6 relative group transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                                                    <div className="w-32 flex items-center gap-4 shrink-0">
+                                                        <button 
+                                                            onClick={() => updateWorkHours(day.id, isOpen ? null : [{ start: '09:00', end: '18:00' }])}
+                                                            className={`w-9 h-5 rounded-full relative transition-all duration-300 ${isOpen ? 'bg-gold-500' : 'bg-slate-200 dark:bg-slate-800'}`}
+                                                        >
+                                                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ${isOpen ? 'left-[1.125rem]' : 'left-0.5'}`} />
+                                                        </button>
+                                                        <span className={`text-[11px] font-bold uppercase tracking-widest ${isOpen ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
+                                                            {day.label}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex-1">
+                                                        {isOpen ? (
+                                                            <div className="flex flex-wrap gap-2.5">
+                                                                {intervals.map((interval: any, idx: number) => (
+                                                                    <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 pl-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                                                                        <input 
+                                                                            type="time" 
+                                                                            value={interval.start}
+                                                                            onChange={(e) => {
+                                                                                const newInts = [...intervals];
+                                                                                newInts[idx].start = e.target.value;
+                                                                                updateWorkHours(day.id, newInts);
+                                                                            }}
+                                                                            className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none flex-shrink-0"
+                                                                        />
+                                                                        <span className="text-[10px] font-bold text-slate-300">/</span>
+                                                                        <input 
+                                                                            type="time" 
+                                                                            value={interval.end}
+                                                                            onChange={(e) => {
+                                                                                const newInts = [...intervals];
+                                                                                newInts[idx].end = e.target.value;
+                                                                                updateWorkHours(day.id, newInts);
+                                                                            }}
+                                                                            className="bg-transparent text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none flex-shrink-0"
+                                                                        />
+                                                                        <button 
+                                                                            onClick={() => removeInterval(day.id, idx)}
+                                                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                                <button 
+                                                                    onClick={() => addInterval(day.id)}
+                                                                    className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-800 rounded-lg text-slate-400 hover:text-gold-500 hover:border-gold-500 transition-all text-[10px] font-bold uppercase"
+                                                                >
+                                                                    <Plus className="w-3 h-3" />
+                                                                    Add Turno (Intervalo)
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[11px] text-slate-400 italic">Fechado para atendimentos</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                </div>
+                                </section>
                             </div>
                         )}
 
                         {activeTab === 'notificacoes' && (
-                            <div className="space-y-10">
-                                <div className="space-y-6">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Alertas Internos</h3>
-                                    <div className="space-y-3">
+                            <div className="space-y-12">
+                                <section className="space-y-6">
+                                    <div className="space-y-1">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Central de Alertas</h3>
+                                        <p className="text-xs text-slate-500">Controle como você recebe avisos do sistema.</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {[
-                                            { id: 'notify_new_appointments', label: 'Novos Agendamentos', desc: 'Aviso imediato de novas reservas.', icon: Smartphone },
-                                            { id: 'notify_cancellations', label: 'Cancelamentos', desc: 'Notificar quando um horário for liberado.', icon: Trash2 },
-                                            { id: 'notify_daily_summary', label: 'Resumo Diário', desc: 'Agenda do dia seguinte enviada à noite.', icon: Calendar }
-                                        ].map((item, i) => (
-                                            <div key={i} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-9 h-9 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400">
-                                                        <item.icon className="w-4.5 h-4.5" />
-                                                    </div>
-                                                    <div className="space-y-0.5">
-                                                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{item.label}</span>
-                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{item.desc}</p>
-                                                    </div>
+                                            { id: 'notify_new_appointments', label: 'Novas Reservas', desc: 'Avisar quando houver novo agendamento.' },
+                                            { id: 'notify_cancellations', label: 'Cancelamentos', desc: 'Notificar desistências em tempo real.' },
+                                            { id: 'notify_daily_summary', label: 'Resumo da Agenda', desc: 'Receber agenda do dia por e-mail.' },
+                                            { id: 'whatsapp_confirmation', label: 'Sincronizar WhatsApp', desc: 'Confirmação automática via API.' }
+                                        ].map((item) => (
+                                            <div key={item.id} className="flex items-center justify-between p-5 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+                                                <div className="space-y-1">
+                                                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{item.label}</span>
+                                                    <p className="text-[11px] text-slate-500">{item.desc}</p>
                                                 </div>
                                                 <button 
-                                                    onClick={() => setBusinessInfo(prev => prev ? { ...prev, [item.id]: !(prev as any)[item.id] } : null)}
-                                                    className={`w-9 h-5 rounded-full relative transition-all ${(businessInfo as any)?.[item.id] ? 'bg-gold-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                    onClick={() => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), [item.id]: !businessInfo?.[item.id as keyof BusinessInfo] }))}
+                                                    className={`w-10 h-5.5 rounded-full relative transition-all duration-300 ${businessInfo?.[item.id as keyof BusinessInfo] ? 'bg-gold-500' : 'bg-slate-200 dark:bg-slate-800'}`}
                                                 >
-                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${(businessInfo as any)?.[item.id] ? 'left-4.5' : 'left-0.5'}`} />
+                                                    <div className={`absolute top-0.75 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ${businessInfo?.[item.id as keyof BusinessInfo] ? 'left-[1.375rem]' : 'left-0.75'}`} />
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
-                                </div>
+                                </section>
 
-                                <div className="p-6 bg-slate-900 dark:bg-slate-50 rounded-2xl text-white dark:text-slate-900 flex gap-4 shadow-sm">
-                                    <div className="p-3 bg-white/10 dark:bg-slate-900/5 rounded-xl shrink-0">
-                                        <Bell className="w-6 h-6" />
+                                <section className="space-y-6">
+                                    <div className="space-y-1">
+                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Lembretes Automáticos</h3>
+                                        <p className="text-xs text-slate-500">Configurações de avisos para seus clientes.</p>
                                     </div>
-                                    <div className="flex-1 space-y-1">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-sm font-bold uppercase tracking-widest">Confirmação via WhatsApp</h4>
-                                            <button 
-                                                onClick={() => setBusinessInfo(prev => prev ? { ...prev, whatsapp_confirmation: !(prev as any).whatsapp_confirmation } : null)}
-                                                className={`w-9 h-5 rounded-full relative transition-all ${(businessInfo as any)?.whatsapp_confirmation ? 'bg-gold-500' : 'bg-white/20 dark:bg-slate-200'}`}
-                                            >
-                                                <div className={`absolute top-0.5 w-4 h-4 bg-white dark:bg-slate-900 rounded-full shadow-sm transition-all ${(businessInfo as any)?.whatsapp_confirmation ? 'left-4.5' : 'left-0.5'}`} />
-                                            </button>
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-8">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Antecedência do Lembrete</label>
+                                            <div className="flex items-center gap-4">
+                                                <input 
+                                                    type="number" 
+                                                    value={businessInfo?.reminder_time || 60}
+                                                    onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), reminder_time: parseInt(e.target.value) || 0 }))}
+                                                    className="w-24 px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold focus:ring-2 focus:ring-gold-500/20 outline-none text-center dark:text-white"
+                                                />
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Minutos antes do horário</span>
+                                            </div>
                                         </div>
-                                        <p className="text-xs opacity-70 leading-relaxed">
-                                            Seus clientes recebem automaticamente os detalhes do agendamento no WhatsApp assim que você confirma o horário.
-                                        </p>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mensagem de Lembrete</label>
+                                            <textarea 
+                                                value={businessInfo?.reminder_message || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), reminder_message: e.target.value }))}
+                                                rows={4}
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm italic font-medium focus:ring-2 focus:ring-gold-500/20 outline-none resize-none dark:text-white"
+                                                placeholder="Olá {nome}, confirmamos seu agendamento..."
+                                            />
+                                            <div className="flex flex-wrap gap-2">
+                                                {['{nome}', '{horario}', '{servico}', '{data}'].map(tag => (
+                                                    <span key={tag} className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-[10px] font-mono text-slate-400 lowercase">{tag}</span>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                </section>
                             </div>
                         )}
 
-                        {activeTab === 'seguranca' && (
-                            <div className="space-y-12">
-                                <div className="space-y-4">
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Acesso</h3>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div className="flex items-center justify-between p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400">
+                        {activeTab === 'assinatura' && (
+                            <div className="space-y-10">
+                                <div className="space-y-6">
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Seu Plano Atual</h3>
+                                    <div className="bg-slate-950 rounded-2xl p-8 border border-slate-800 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                                            <CreditCard className="w-32 h-32 text-gold-500" />
+                                        </div>
+                                        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-2xl font-bold text-white uppercase tracking-tighter">Premium Yearly</span>
+                                                    <span className="bg-green-500/20 text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Ativo</span>
+                                                </div>
+                                                <p className="text-sm text-slate-400">Sua assinatura foi renovada em Dezembro de 2025.</p>
+                                            </div>
+                                            <button className="px-6 py-2.5 bg-white text-slate-950 rounded-lg font-bold text-sm hover:bg-slate-100 transition-all active:scale-95">
+                                                Gerenciar Faturas
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Segurança e Acesso</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-400">
                                                     <Mail className="w-5 h-5" />
                                                 </div>
                                                 <div className="space-y-0.5">
                                                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100">E-mail</span>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">anildo.gomes@aluno.ufca.edu.br</p>
+                                                    <p className="text-xs text-slate-500">{businessInfo?.full_name ? 'anildo.gomes@aluno.ufca.edu.br' : 'vazio'}</p>
                                                 </div>
                                             </div>
-                                            <button className="text-[11px] font-bold uppercase text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors">Alterar</button>
+                                            <button className="text-[10px] font-bold text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors uppercase tracking-widest">Alterar</button>
                                         </div>
-                                        <div className="flex items-center justify-between p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400">
+                                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-400">
                                                     <Lock className="w-5 h-5" />
                                                 </div>
                                                 <div className="space-y-0.5">
                                                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100">Senha</span>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">••••••••••••</p>
+                                                    <p className="text-xs text-slate-500">••••••••••••</p>
                                                 </div>
                                             </div>
-                                            <button className="text-[11px] font-bold uppercase text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors">Redefinir</button>
+                                            <button className="text-[10px] font-bold text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors uppercase tracking-widest">Redefinir</button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="pt-12 border-t border-slate-100 dark:border-slate-800">
-                                    <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-                                        <div className="space-y-1 text-center sm:text-left">
-                                            <h4 className="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-widest">Zona de Perigo</h4>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-                                                A exclusão da conta é permanente e removerá todos os seus dados e histórico.
-                                            </p>
+                                <div className="pt-10 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="p-6 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-100 dark:border-red-900/20 flex flex-col sm:flex-row items-center justify-between gap-6">
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-bold text-red-600 dark:text-red-400 italic">Zona Crítica</h4>
+                                            <p className="text-xs text-slate-500 max-w-sm">A exclusão da conta é irreversível e removerá todos os seus dados e histórico de agendamentos.</p>
                                         </div>
-                                        <button className="px-6 py-3 bg-red-600 text-white text-[11px] font-bold uppercase tracking-widest rounded-xl hover:bg-red-700 transition-all active:scale-95 shadow-sm">
-                                            Excluir Unidade
+                                        <button className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-bold text-[11px] uppercase tracking-widest hover:bg-red-700 transition-all active:scale-95 shadow-sm">
+                                            Excluir Conta
                                         </button>
                                     </div>
                                 </div>
@@ -692,6 +680,20 @@ const SettingsPage: React.FC = () => {
                     </motion.div>
                 </AnimatePresence>
             </main>
+
+            {/* Bottom Save Button - Sticky to stay accessible but allow viewing footer */}
+            {activeTab !== 'assinatura' && (
+                <div className="sticky bottom-0 p-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-center z-40 -mx-4">
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="w-full max-w-sm flex items-center justify-center gap-2 px-8 py-3.5 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold text-base hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 shadow-xl"
+                    >
+                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                        <span>{saving ? 'Salvando...' : 'Salvar Alterações'}</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

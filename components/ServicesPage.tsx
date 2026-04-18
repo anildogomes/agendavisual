@@ -18,7 +18,7 @@ import {
 import { supabase } from '../supabaseClient';
 import { useToast, useDemoData } from '../App';
 import { Service } from '../types';
-import { ConfirmationModal, StatCard } from '../constants';
+import { ConfirmationModal } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 
 const ServicesPage: React.FC = () => {
@@ -172,64 +172,89 @@ const ServicesPage: React.FC = () => {
     }), [services]);
 
     return (
-        <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-10 animate-fade-in">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <StatCard title="Total de Serviços" value={stats.total.toString()} icon={<Briefcase className="w-5 h-5" />} color="gold" />
-                <StatCard title="Ticket Médio" value={`R$ ${stats.avgPrice.toFixed(2)}`} icon={<TrendingUp className="w-5 h-5" />} color="emerald" />
-                <StatCard title="Destaque" value={stats.mostPopular} icon={<Scissors className="w-5 h-5" />} color="blue" />
+        <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-10 animate-fade-in mb-20">
+            {/* Header Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="space-y-1">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">
+                        Gerencie os serviços oferecidos, preços e durações.
+                    </p>
+                </div>
+                <button 
+                    onClick={() => openModal()}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold text-sm hover:opacity-90 transition-all active:scale-95 shadow-xl w-full sm:w-auto"
+                >
+                    <Plus className="w-5 h-5" />
+                    Novo Serviço
+                </button>
             </div>
 
-            {/* Grid de Serviços */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Lista de Serviços Simples e Compacta */}
+            <div className="space-y-3">
                 {loading ? (
-                    <div className="col-span-full flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Carregando catálogo...</p>
                     </div>
                 ) : services.length === 0 ? (
-                    <div className="col-span-full flex flex-col items-center justify-center py-20 text-center px-4">
-                        <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                            <Scissors className="w-10 h-10 text-slate-300" />
+                    <div className="flex flex-col items-center justify-center py-20 text-center px-4 bg-white dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                            <Scissors className="w-8 h-8 text-slate-300" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Nenhum serviço cadastrado</h3>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs">Sua vitrine está vazia. Adicione serviços para começar a receber agendamentos.</p>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Nenhum serviço cadastrado</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs max-w-xs">Adicione serviços para começar a receber agendamentos.</p>
                     </div>
                 ) : (
                     services.map((service) => (
                         <motion.div 
                             layout
                             key={service.id} 
-                            className="bg-white dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-all group relative"
+                            className="bg-white dark:bg-slate-900 px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500/30 transition-all group"
                         >
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="w-14 h-14 rounded-2xl bg-gold-500/10 flex items-center justify-center text-gold-600 dark:text-gold-400">
-                                    <Scissors className="w-7 h-7" />
+                            <div className="flex flex-col gap-2">
+                                {/* Top Line: Name and Price Badge */}
+                                <div className="flex items-start justify-between gap-4">
+                                    <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight">
+                                        {service.name}
+                                    </h4>
+                                    <span className="shrink-0 px-2.5 py-1.5 bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 text-xs font-black rounded-lg leading-none">
+                                        R$ {service.price.toFixed(2)}
+                                    </span>
                                 </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => openModal(service)} className="p-2.5 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 rounded-xl transition-all">
-                                        <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button onClick={() => { setSelectedService(service); setIsDeleteModalOpen(true); }} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <h4 className="text-xl font-bold text-slate-900 dark:text-slate-100">{service.name}</h4>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[32px]">
-                                    {service.description || 'Sem descrição definida para este serviço.'}
-                                </p>
-                            </div>
-
-                            <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-50 dark:border-slate-800">
-                                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                                    <Clock className="w-4 h-4" />
-                                    <span className="text-xs font-bold">{service.duration} min</span>
-                                </div>
-                                <div className="text-lg font-serif font-bold text-slate-900 dark:text-slate-50">
-                                    R$ {service.price.toFixed(2)}
+                                
+                                {/* Bottom Line: Description and Duration/Actions */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-50 dark:border-slate-800/50 pt-2 mt-1">
+                                    <div className="flex-1 min-w-0">
+                                        {service.description && (
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 leading-relaxed">
+                                                {service.description}
+                                            </p>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-6 shrink-0 justify-end">
+                                        <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">{service.duration}m</span>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-0.5">
+                                            <button 
+                                                onClick={() => openModal(service)} 
+                                                className="p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                                                title="Editar"
+                                            >
+                                                <Edit className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => { setSelectedService(service); setIsDeleteModalOpen(true); }} 
+                                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                title="Excluir"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -255,74 +280,78 @@ const ServicesPage: React.FC = () => {
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
-                            <form onSubmit={handleSave} className="p-8 space-y-6">
-                                <div className="space-y-4">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Serviço</label>
-                                    <input 
-                                        type="text" 
-                                        required
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all"
-                                        placeholder="Ex: Corte Moderno + Lavagem"
-                                    />
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-6">
+                            <form onSubmit={handleSave} className="p-8 space-y-8">
+                                <div className="space-y-6">
                                     <div className="space-y-4">
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preço (R$)</label>
-                                        <div className="relative">
-                                            <DollarSign className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                                            <input 
-                                                type="number" 
-                                                step="0.01"
-                                                required
-                                                value={formData.price}
-                                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                                className="w-full p-3.5 pl-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all"
-                                                placeholder="0.00"
-                                            />
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Serviço</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all dark:text-white"
+                                            placeholder="Ex: Corte Moderno + Lavagem"
+                                        />
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preço de Venda</label>
+                                            <div className="relative">
+                                                <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                                    <span className="text-xs font-bold text-slate-400">R$</span>
+                                                </div>
+                                                <input 
+                                                    type="number" 
+                                                    step="0.01"
+                                                    required
+                                                    value={formData.price}
+                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                                    className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all dark:text-white"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tempo de Execução (min)</label>
+                                            <div className="relative">
+                                                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <input 
+                                                    type="number" 
+                                                    required
+                                                    value={formData.duration}
+                                                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                                                    className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all dark:text-white"
+                                                    placeholder="30"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Duração (min)</label>
-                                        <div className="relative">
-                                            <Clock className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                                            <input 
-                                                type="number" 
-                                                required
-                                                value={formData.duration}
-                                                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                                                className="w-full p-3.5 pl-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all"
-                                                placeholder="30"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className="space-y-4">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descrição da Experiência</label>
-                                    <textarea 
-                                        value={formData.description}
-                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all min-h-[100px] resize-none"
-                                        placeholder="Descreva o que está incluso e o diferencial deste serviço..."
-                                    />
+                                    <div className="space-y-4">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descrição e Benefícios</label>
+                                        <textarea 
+                                            value={formData.description}
+                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all min-h-[120px] resize-none dark:text-white"
+                                            placeholder="Descreva o que está incluso no serviço e qual o diferencial do resultado final..."
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="pt-4 flex gap-4">
                                     <button 
                                         type="button"
                                         onClick={() => setIsModalOpen(false)}
-                                        className="flex-1 py-3.5 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                                        className="flex-1 py-4 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
                                     >
                                         Cancelar
                                     </button>
                                     <button 
                                         type="submit"
-                                        className="flex-1 py-3.5 text-sm font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                                        className="flex-1 py-4 text-sm font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
                                     >
-                                        {selectedService ? 'Atualizar' : 'Cadastrar'}
+                                        {selectedService ? 'Salvar Alterações' : 'Criar Serviço'}
                                     </button>
                                 </div>
                             </form>

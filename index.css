@@ -88,6 +88,13 @@
 }
 
 @layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
   .animate-slide-in {
     animation: slide-in 0.3s ease-out forwards;
   }

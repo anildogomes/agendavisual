@@ -43,15 +43,7 @@ const ScheduleBlocksPage: React.FC = () => {
         setLoading(true);
 
         if (isDemo) {
-            setBlocks(demoData.appointments.filter(a => a.status === 'cancelled').map(a => ({
-                id: a.id,
-                business_id: a.business_id,
-                professional_id: a.professional_id,
-                date: a.date,
-                start_time: a.time,
-                end_time: a.time, // Simplified for demo
-                reason: 'Cancelado'
-            })) as any); // Demo doesn't have explicit blocks in mockData yet, using cancelled apps as placeholder
+            setBlocks(demoData.blocks || []);
             setLoading(false);
             return;
         }
@@ -99,27 +91,26 @@ const ScheduleBlocksPage: React.FC = () => {
         e.preventDefault();
 
         if (isDemo) {
-            const blockData = {
+            const blockData: ScheduleBlock = {
                 id: selectedBlock?.id || `b${Date.now()}`,
                 ...formData,
                 business_id: demoData.business.id
-            };
+            } as any;
 
             if (selectedBlock) {
                 setDemoData(prev => ({
                     ...prev,
-                    appointments: prev.appointments.map(a => a.id === selectedBlock.id ? blockData as any : a)
+                    blocks: (prev.blocks || []).map(b => b.id === selectedBlock.id ? blockData : b)
                 }));
                 addToast('Bloqueio atualizado (Modo Demo)!', 'success');
             } else {
                 setDemoData(prev => ({
                     ...prev,
-                    appointments: [...prev.appointments, blockData as any]
+                    blocks: [...(prev.blocks || []), blockData]
                 }));
                 addToast('Bloqueio criado (Modo Demo)!', 'success');
             }
             setIsModalOpen(false);
-            fetchBlocks();
             return;
         }
 
@@ -161,7 +152,11 @@ const ScheduleBlocksPage: React.FC = () => {
         if (!selectedBlock) return;
 
         if (isDemo) {
-            addToast('Bloqueios não podem ser excluídos no Modo Demo.', 'info');
+            setDemoData(prev => ({
+                ...prev,
+                blocks: (prev.blocks || []).filter(b => b.id !== selectedBlock.id)
+            }));
+            addToast('Bloqueio removido (Modo Demo)!', 'success');
             setIsDeleteModalOpen(false);
             return;
         }
@@ -211,7 +206,6 @@ const ScheduleBlocksPage: React.FC = () => {
         <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-10 animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Bloqueios de Agenda</h2>
                     <p className="text-sm text-slate-500">Gerencie períodos de indisponibilidade dos profissionais.</p>
                 </div>
                 <button 
@@ -223,15 +217,8 @@ const ScheduleBlocksPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <StatCard title="Total de Bloqueios" value={stats.total.toString()} icon={<Ban className="w-5 h-5" />} color="gold" />
-                <StatCard title="Próximos Bloqueios" value={stats.upcoming.toString()} icon={<CalendarDays className="w-5 h-5" />} color="emerald" />
-                <StatCard title="Histórico" value={stats.history.toString()} icon={<History className="w-5 h-5" />} color="blue" />
-            </div>
-
             {/* Lista de Bloqueios */}
-            <div className="bg-white dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
