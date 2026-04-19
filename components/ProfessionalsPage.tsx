@@ -28,15 +28,15 @@ import { Professional, Service, BusinessInfo } from '../types';
 import { PhoneInput, ConfirmationModal } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 
-const DAYS_OF_WEEK = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'];
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS: Record<string, string> = {
-    'segunda': 'Segunda-feira',
-    'terca': 'Terça-feira',
-    'quarta': 'Quarta-feira',
-    'quinta': 'Quinta-feira',
-    'sexta': 'Sexta-feira',
-    'sabado': 'Sábado',
-    'domingo': 'Domingo'
+    'monday': 'Segunda-feira',
+    'tuesday': 'Terça-feira',
+    'wednesday': 'Quarta-feira',
+    'thursday': 'Quinta-feira',
+    'friday': 'Sexta-feira',
+    'saturday': 'Sábado',
+    'sunday': 'Domingo'
 };
 
 const ProfessionalsPage: React.FC = () => {
@@ -129,18 +129,53 @@ const ProfessionalsPage: React.FC = () => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!formData.name.trim()) {
+            addToast('O nome do profissional é obrigatório.', 'error');
+            return;
+        }
+
         setSaving(true);
 
         try {
+            // --- VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS ---
+            if (!formData.name.trim()) {
+                addToast('O nome do profissional é obrigatório.', 'error');
+                setSaving(false);
+                return;
+            }
+
+            if (!formData.whatsapp_phone.trim() || formData.whatsapp_phone.length < 10) {
+                addToast('Insira um número de WhatsApp válido.', 'error');
+                setSaving(false);
+                return;
+            }
+
+            if (!formData.service_ids || formData.service_ids.length === 0) {
+                addToast('Selecione pelo menos um serviço que este profissional realiza.', 'error');
+                setSaving(false);
+                return;
+            }
+
+            // Verifica se há pelo menos um dia com horário configurado
+            const hasWorkHours = Object.values(formData.work_hours).some((day: any) => day && day.length > 0);
+            if (!hasWorkHours) {
+                addToast('Configure o horário de atendimento na aba "Horários".', 'error');
+                setModalTab('horario'); // Alterna para a aba de horários para facilitar
+                setSaving(false);
+                return;
+            }
+
             if (isDemo) {
                 const professionalData: Professional = {
                     id: selectedProfessional?.id || `p${Date.now()}`,
-                    name: formData.name,
-                    whatsapp_phone: formData.whatsapp_phone,
+                    name: formData.name.trim(),
+                    whatsapp_phone: formData.whatsapp_phone.trim(),
                     avatar_url: formData.avatar_url,
                     service_ids: formData.service_ids,
                     business_id: demoData.business.id,
-                    work_hours: formData.work_hours
+                    work_hours: formData.work_hours,
+                    created_at: selectedProfessional?.created_at || new Date().toISOString()
                 };
 
                 if (selectedProfessional) {
@@ -161,21 +196,78 @@ const ProfessionalsPage: React.FC = () => {
             }
 
             const { data: { user } } = await supabase.auth.getUser();
+            console.log('Verificando usuário logado:', user);
+            
             if (!user) {
                 addToast('Sessão expirada. Faça login novamente.', 'error');
                 return;
             }
 
+            // Ensure business record exists first
+            const cleanUserId = String(user.id).trim();
+            console.log('Clean User ID para salvamento:', cleanUserId);
+            
+            // SECURITY: Double check if user is not using a known wildcard or invalid string
+            if (!cleanUserId || cleanUserId === '*' || cleanUserId === 'undefined' || cleanUserId === 'null') {
+                console.error('ALERTA: ID de usuário inválido detectado no salvamento:', cleanUserId);
+                addToast('Sessão inválida. Por favor, saia e entre novamente no sistema.', 'error');
+                setSaving(false);
+                return;
+            }
+
+            // Data sanitization
+            const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+            
+            const validServiceIds = (formData.service_ids || []).filter(id => 
+                id && typeof id === 'string' && (isDemo ? id.length > 0 : isUuid(id))
+            );
+
+            if (validServiceIds.length === 0) {
+                addToast('Selecione pelo menos um serviço válido cadastrado por você.', 'error');
+                setSaving(false);
+                return;
+            }
+
+            const { data: businessCheck } = await supabase
+                .from('businesses')
+                .select('id')
+                .eq('id', cleanUserId)
+                .maybeSingle();
+            
+            if (!businessCheck) {
+                // Create a basic business record if it doesn't exist to prevent orphaned relation errors
+                const { error: bizError } = await supabase.from('businesses').insert([{
+                    id: cleanUserId,
+                    business_name: 'Minha Barbearia',
+                    full_name: user.user_metadata?.full_name || 'Membro da Equipe', 
+                    slug: `barbearia-${Math.random().toString(36).slice(2, 7)}`,
+                    whatsapp_phone: '',
+                    work_hours: {}
+                }]);
+                if (bizError) {
+                    console.error('Error creating business profile:', bizError);
+                    addToast('Erro ao inicializar dados do negócio. Verifique sua conexão.', 'error');
+                    setSaving(false);
+                    return;
+                }
+            }
+
             const professionalData = {
-                name: formData.name,
-                whatsapp_phone: formData.whatsapp_phone,
+                name: formData.name.trim(),
+                whatsapp_phone: formData.whatsapp_phone.trim(),
                 avatar_url: formData.avatar_url,
-                service_ids: formData.service_ids,
-                business_id: user.id,
+                service_ids: validServiceIds,
+                business_id: cleanUserId,
                 work_hours: formData.work_hours
             };
 
-            if (selectedProfessional) {
+            // Fix for "invalid input syntax for type uuid" error
+            // If the ID is short (like "p1") or numeric, it's demo data. 
+            // In a real session, we MUST force an insert for such items.
+            const isRealUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+
+            if (selectedProfessional && isRealUuid(selectedProfessional.id)) {
+                console.log('Atualizando profissional real:', selectedProfessional.id);
                 const { error } = await supabase
                     .from('professionals')
                     .update(professionalData)
@@ -183,24 +275,37 @@ const ProfessionalsPage: React.FC = () => {
 
                 if (error) {
                     console.error('Error updating professional:', error);
-                    addToast(`Erro ao atualizar profissional: ${error.message}`, 'error');
+                    addToast(`Erro ao atualizar: ${error.message}`, 'error');
                 } else {
                     addToast('Profissional atualizado com sucesso!', 'success');
                     setIsModalOpen(false);
                     fetchProfessionals();
                 }
             } else {
+                console.log('Inserindo novo profissional (ou convertendo demo para real)');
                 const { error } = await supabase
                     .from('professionals')
                     .insert([professionalData]);
 
                 if (error) {
                     console.error('Error inserting professional:', error);
-                    addToast(`Erro ao cadastrar profissional: ${error.message}`, 'error');
+                    addToast(`Erro ao cadastrar: ${error.message}`, 'error');
                 } else {
                     addToast('Profissional cadastrado com sucesso!', 'success');
                     setIsModalOpen(false);
                     fetchProfessionals();
+
+                    // Check for completion
+                    const { count: profCount } = await supabase
+                        .from('professionals')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('business_id', cleanUserId);
+
+                    if (profCount === 1) {
+                         addToast('Parabéns! Cadastro completo. Sua agenda agora está disponível para os clientes.', 'success', true);
+                    }
+                    
+                    window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
                 }
             }
         } catch (error: any) {
@@ -456,15 +561,15 @@ const ProfessionalsPage: React.FC = () => {
             {/* Modal de Cadastro/Edição Premium */}
             <AnimatePresence>
                 {isModalOpen && (
-                    <div className="fixed inset-0 bg-slate-900/60 z-[100] flex justify-center items-center p-4 backdrop-blur-md">
+                    <div className="fixed inset-0 bg-slate-900/60 z-[100] flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-md">
                         <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            initial={{ opacity: 0, scale: 0.95, y: 100 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]"
+                            exit={{ opacity: 0, scale: 0.95, y: 100 }}
+                            className="bg-white dark:bg-slate-900 rounded-t-[24px] sm:rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]"
                         >
-                            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
-                                <h3 className="text-xl font-serif font-bold text-slate-900 dark:text-slate-100">
+                            <div className="px-5 py-4 sm:px-8 sm:py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
+                                <h3 className="text-base sm:text-xl font-serif font-bold text-slate-900 dark:text-slate-100">
                                     {selectedProfessional ? 'Editar Perfil' : 'Novo Profissional'}
                                 </h3>
                                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
@@ -473,11 +578,11 @@ const ProfessionalsPage: React.FC = () => {
                             </div>
 
                             {/* Tabs Navigation */}
-                            <div className="flex border-b border-slate-100 dark:border-slate-800 px-8">
+                            <div className="flex border-b border-slate-100 dark:border-slate-800 px-5 sm:px-8">
                                 <button 
                                     type="button"
                                     onClick={() => setModalTab('perfil')}
-                                    className={`py-4 px-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${
+                                    className={`py-3 sm:py-4 px-4 text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${
                                         modalTab === 'perfil' 
                                             ? 'border-gold-500 text-gold-600' 
                                             : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -488,7 +593,7 @@ const ProfessionalsPage: React.FC = () => {
                                 <button 
                                     type="button"
                                     onClick={() => setModalTab('horario')}
-                                    className={`py-4 px-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${
+                                    className={`py-3 sm:py-4 px-4 text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border-b-2 ${
                                         modalTab === 'horario' 
                                             ? 'border-gold-500 text-gold-600' 
                                             : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -499,7 +604,7 @@ const ProfessionalsPage: React.FC = () => {
                             </div>
 
                             <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
-                                <div className="p-8 space-y-8 overflow-y-auto flex-1">
+                                <div className="p-5 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1">
                                     {modalTab === 'perfil' ? (
                                         <>
                                             <div className="space-y-8">
@@ -587,78 +692,101 @@ const ProfessionalsPage: React.FC = () => {
                                         </>
                                     ) : (
                                         <div className="space-y-6">
-                                            <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl">
-                                                <TrendingUp className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                                <p className="text-[10px] font-medium text-amber-800 dark:text-amber-400 leading-relaxed uppercase tracking-wider">
-                                                    Horários limitados conforme o funcionamento do negócio em configurações.
-                                                </p>
-                                            </div>
+                                            {(!businessInfo?.work_hours || Object.keys(businessInfo.work_hours).length === 0) ? (
+                                                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4">
+                                                    <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto">
+                                                        <Calendar className="w-6 h-6 text-slate-300" />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Horários do Negócio não definidos</h4>
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest leading-relaxed">
+                                                            Você precisa configurar os dias e horários de funcionamento do seu negócio em <b>Configurações</b> antes de definir os horários dos profissionais.
+                                                        </p>
+                                                    </div>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => window.location.hash = 'settings'}
+                                                        className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-lg"
+                                                    >
+                                                        Configurar Agora
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl">
+                                                        <TrendingUp className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                        <p className="text-[10px] font-medium text-amber-800 dark:text-amber-400 leading-relaxed uppercase tracking-wider">
+                                                            Dias disponíveis baseados no funcionamento do negócio definido em Configurações.
+                                                        </p>
+                                                    </div>
 
-                                            <div className="space-y-4">
-                                                {DAYS_OF_WEEK.map(day => {
-                                                    const isBusinessDayActive = businessInfo?.work_hours?.[day] != null;
-                                                    const isProfessionalDayActive = formData.work_hours?.[day] != null;
-                                                    
-                                                    if (!isBusinessDayActive) return null;
+                                                    <div className="space-y-4">
+                                                        {DAYS_OF_WEEK.map(day => {
+                                                            const isBusinessDayActive = businessInfo?.work_hours?.[day] != null;
+                                                            const isProfessionalDayActive = formData.work_hours?.[day] != null;
+                                                            
+                                                            if (!isBusinessDayActive) return null;
 
-                                                    return (
-                                                        <div key={day} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`p-2 rounded-lg ${isProfessionalDayActive ? 'bg-gold-100 text-gold-600' : 'bg-slate-200 text-slate-400'}`}>
-                                                                        <Clock className="w-4 h-4" />
+                                                            return (
+                                                                <div key={day} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className={`p-2 rounded-lg ${isProfessionalDayActive ? 'bg-gold-100 text-gold-600' : 'bg-slate-200 text-slate-400'}`}>
+                                                                                <Clock className="w-4 h-4" />
+                                                                            </div>
+                                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{DAY_LABELS[day]}</span>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleDay(day)}
+                                                                            className={`w-12 h-6 rounded-full transition-all relative ${isProfessionalDayActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                                        >
+                                                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isProfessionalDayActive ? 'left-7' : 'left-1'}`} />
+                                                                        </button>
                                                                     </div>
-                                                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{DAY_LABELS[day]}</span>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => toggleDay(day)}
-                                                                    className={`w-12 h-6 rounded-full transition-all relative ${isProfessionalDayActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                                                >
-                                                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isProfessionalDayActive ? 'left-7' : 'left-1'}`} />
-                                                                </button>
-                                                            </div>
 
-                                                            {isProfessionalDayActive && (
-                                                                <div className="space-y-3 pt-2">
-                                                                    {(formData.work_hours[day] || []).map((interval: any, idx: number) => (
-                                                                        <div key={idx} className="flex items-center gap-2">
-                                                                            <input 
-                                                                                type="time" 
-                                                                                value={interval.start}
-                                                                                onChange={(e) => updateInterval(day, idx, 'start', e.target.value)}
-                                                                                className="flex-1 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono dark:text-white"
-                                                                            />
-                                                                            <span className="text-slate-300">às</span>
-                                                                            <input 
-                                                                                type="time" 
-                                                                                value={interval.end}
-                                                                                onChange={(e) => updateInterval(day, idx, 'end', e.target.value)}
-                                                                                className="flex-1 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono dark:text-white"
-                                                                            />
+                                                                    {isProfessionalDayActive && (
+                                                                        <div className="space-y-3 pt-2">
+                                                                            {(formData.work_hours[day] || []).map((interval: any, idx: number) => (
+                                                                                <div key={idx} className="flex items-center gap-2">
+                                                                                    <input 
+                                                                                        type="time" 
+                                                                                        value={interval.start}
+                                                                                        onChange={(e) => updateInterval(day, idx, 'start', e.target.value)}
+                                                                                        className="flex-1 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono dark:text-white"
+                                                                                    />
+                                                                                    <span className="text-slate-300">às</span>
+                                                                                    <input 
+                                                                                        type="time" 
+                                                                                        value={interval.end}
+                                                                                        onChange={(e) => updateInterval(day, idx, 'end', e.target.value)}
+                                                                                        className="flex-1 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono dark:text-white"
+                                                                                    />
+                                                                                    <button 
+                                                                                        type="button" 
+                                                                                        onClick={() => removeInterval(day, idx)}
+                                                                                        className="p-2 text-slate-400 hover:text-red-500"
+                                                                                    >
+                                                                                        <Trash2 className="w-4 h-4" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            ))}
                                                                             <button 
-                                                                                type="button" 
-                                                                                onClick={() => removeInterval(day, idx)}
-                                                                                className="p-2 text-slate-400 hover:text-red-500"
+                                                                                type="button"
+                                                                                onClick={() => addInterval(day)}
+                                                                                className="w-full py-2 bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-slate-400 text-[10px] font-bold uppercase rounded-xl hover:border-gold-500 hover:text-gold-600 transition-all flex items-center justify-center gap-1"
                                                                             >
-                                                                                <Trash2 className="w-4 h-4" />
+                                                                                <Plus className="w-3 h-3" />
+                                                                                Adicionar Intervalo
                                                                             </button>
                                                                         </div>
-                                                                    ))}
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => addInterval(day)}
-                                                                        className="w-full py-2 bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-slate-400 text-[10px] font-bold uppercase rounded-xl hover:border-gold-500 hover:text-gold-600 transition-all flex items-center justify-center gap-1"
-                                                                    >
-                                                                        <Plus className="w-3 h-3" />
-                                                                        Adicionar Intervalo
-                                                                    </button>
+                                                                    )}
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </div>

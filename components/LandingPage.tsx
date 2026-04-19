@@ -120,7 +120,7 @@ const LandingPage: React.FC = () => {
       </nav>
 
       {/* --- HERO SECTION --- */}
-      <section className="relative pt-20 sm:pt-32 pb-8 sm:pb-16 overflow-hidden">
+      <section className="relative pt-40 sm:pt-48 pb-8 sm:pb-16 overflow-hidden">
         {/* Background Glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[500px] bg-orange-400/10 dark:bg-orange-500/5 blur-[100px] rounded-full pointer-events-none z-0"></div>
         
@@ -130,17 +130,16 @@ const LandingPage: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className={`text-3xl sm:text-7xl font-extrabold leading-[1.1] mb-4 sm:mb-8 tracking-tight transition-colors duration-300 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}
+              className={`text-4xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.1] mb-6 sm:mb-10 tracking-tight transition-colors duration-300 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}
             >
-              Sua agenda online, <br />
-              <span className="text-orange-500">simples e profissional</span>
+              Sua agenda online, <br className="hidden sm:block" /> <span className="text-orange-500">simples e profissional</span>
             </motion.h1>
 
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className={`text-sm sm:text-xl mb-6 sm:mb-10 max-w-2xl mx-auto leading-relaxed font-medium transition-colors duration-300 ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}
+              className={`text-sm sm:text-xl mb-10 sm:mb-14 max-w-2xl mx-auto leading-relaxed font-medium transition-colors duration-300 ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}
             >
               Gerencie agendamentos, clientes e serviços em uma plataforma completa. Seus clientes agendam 24h por dia, você foca no que faz de melhor.
             </motion.p>
@@ -207,14 +206,17 @@ const LandingPage: React.FC = () => {
               </button>
             </motion.div>
 
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className={`mt-6 sm:mt-10 text-[10px] sm:text-sm font-medium transition-colors duration-300 ${theme === 'light' ? 'text-slate-600' : 'text-slate-500'}`}
+              className="mt-3 sm:mt-5"
             >
-              30 dias grátis • Sem cartão de crédito
-            </motion.p>
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-slate-900 text-gold-400 dark:bg-white dark:text-slate-900 text-[10px] sm:text-xs font-black uppercase tracking-[0.15em] shadow-2xl border-2 border-gold-500/20 whitespace-nowrap overflow-hidden">
+                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                <span>30 dias grátis • Sem cartão de crédito</span>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>

@@ -54,6 +54,7 @@ import {
   Loader2,
   LayoutDashboard,
   Palette,
+  Sparkles,
   Link as LinkIcon
 } from 'lucide-react';
 
@@ -119,6 +120,7 @@ export {
   Loader2,
   LayoutDashboard,
   Palette,
+  Sparkles,
   LinkIcon as Link,
   BarChart3 as ChartBar
 };

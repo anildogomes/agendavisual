@@ -649,7 +649,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; isDemo?: boolean }> = ({ 
         { id: 'activity', label: 'Atividades', icon: Activity },
     ];
 
-    const activeLabel = navItems.find(item => item.id === activeView)?.label || 'Painel';
+    const activeLabel = navItems.find(item => item.id === activeView)?.label || 'Início';
 
     return (
         <div className="flex flex-col h-screen font-sans overflow-hidden transition-colors duration-300">
@@ -780,16 +780,17 @@ const AdminDashboard: React.FC<{ onLogout: () => void; isDemo?: boolean }> = ({ 
                 </main>
 
                 {/* Mobile Bottom Nav */}
-                <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl shadow-2xl z-50 h-16 px-6 flex items-center justify-between border border-slate-800 dark:border-slate-200">
+                <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl sm:rounded-2xl shadow-2xl z-50 h-14 sm:h-16 px-4 sm:px-6 flex items-center justify-around border border-slate-800 dark:border-slate-200">
                     {navItems.map(item => {
                         const isActive = activeView === item.id;
                         return (
                             <button
                                 key={item.id}
                                 onClick={() => setActiveView(item.id)}
-                                className={`flex flex-col items-center justify-center gap-1 transition-all ${isActive ? 'text-primary-400 dark:text-primary-600 scale-110' : 'text-slate-400 dark:text-slate-500 hover:text-slate-200'}`}
+                                className={`flex flex-col items-center justify-center gap-1 transition-all p-2 ${isActive ? 'text-primary-400 dark:text-primary-600 scale-105' : 'text-slate-400 dark:text-slate-500 hover:text-slate-200'}`}
                             >
-                                <item.icon className="w-6 h-6" />
+                                <item.icon className="w-5 h-5 sm:w-6 h-6" />
+                                <span className={`text-[8px] font-bold uppercase tracking-tighter ${isActive ? 'opacity-100' : 'opacity-0'}`}>{item.label.split(' ')[0]}</span>
                             </button>
                         )
                     })}

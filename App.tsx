@@ -80,7 +80,7 @@ export const useToast = () => useContext(ToastContext);
 
 const ToastContainer: React.FC<{ toasts: Toast[]; removeToast: (id: number) => void }> = ({ toasts, removeToast }) => {
   return (
-    <div className="fixed top-4 right-4 z-[70] flex flex-col gap-2 w-full max-w-sm pointer-events-none">
+    <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 w-full max-w-sm pointer-events-none">
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -228,14 +228,16 @@ const App: React.FC = () => {
             const isSpecificRoute = currentHash.startsWith('#confirm-appointment') || currentHash.startsWith('#feedback') || currentHash === '#update-password';
 
             if (!isPublicRoute && !isSpecificRoute) {
-                const newHash = isAdminUser ? '#admin/dashboard' : '#overview';
-                // Always redirect to dashboard/overview on login to ensure user lands on the right place
-                window.location.hash = newHash;
+                const newHash = isAdminUser ? '#admin/dashboard' : '#inicio';
+                // Use replace to avoid history pollution and ensure clean landing
+                window.location.replace(newHash);
                 setRoute(newHash);
             }
 
-             const fetchUserNameAndWelcome = async () => {
-                if (session?.user) {
+            // Force a small delay to ensure session is fully propagated before fetching names
+            setTimeout(async () => {
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
+                if (currentSession?.user) {
                     if (window.location.hash !== '#update-password') {
                         if (isAdminUser) {
                             addToast('Bem Vindo(a) Administrador!', 'success');
@@ -243,19 +245,18 @@ const App: React.FC = () => {
                             const { data, error } = await supabase
                                 .from('businesses')
                                 .select('full_name')
-                                .eq('id', session.user.id)
-                                .single();
+                                .eq('id', currentSession.user.id)
+                                .maybeSingle();
                             
                             if (!error && data && data.full_name) {
                                 addToast(`Bem Vindo(a) ${data.full_name}!`, 'success');
                             } else {
-                                addToast('Bem-vindo de volta!', 'success');
+                                addToast('Bem-vindo de volta! Vamos completar seu cadastro.', 'info');
                             }
                         }
                     }
                 }
-             };
-             fetchUserNameAndWelcome();
+            }, 500);
         } else if (_event === 'SIGNED_OUT') {
             const currentHash = window.location.hash;
             const isPublicRoute = currentHash.startsWith('#/') && currentHash.length > 2;

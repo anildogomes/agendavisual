@@ -41,6 +41,7 @@ export interface Service {
   duration: number;
   description?: string;
   business_id: string;
+  created_at?: string;
 }
 
 export interface Professional {
@@ -51,6 +52,7 @@ export interface Professional {
   work_hours: any;
   business_id: string;
   whatsapp_phone?: string;
+  created_at?: string;
 }
 
 export interface Appointment {

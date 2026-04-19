@@ -64,6 +64,20 @@ const ServicesPage: React.FC = () => {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // --- VALIDATION ---
+        if (!formData.name.trim()) {
+            addToast('O nome do serviço é obrigatório.', 'error');
+            return;
+        }
+        if (!formData.price || parseFloat(formData.price) <= 0) {
+            addToast('O preço deve ser maior que zero.', 'error');
+            return;
+        }
+        if (!formData.duration || parseInt(formData.duration) <= 0) {
+            addToast('A duração deve ser maior que zero.', 'error');
+            return;
+        }
+
         if (isDemo) {
             const serviceData: Service = {
                 id: selectedService?.id || `s${Date.now()}`,
@@ -124,6 +138,18 @@ const ServicesPage: React.FC = () => {
                 addToast('Serviço cadastrado com sucesso!', 'success');
                 setIsModalOpen(false);
                 fetchServices();
+                
+                // Onboarding Push: If it's the first service, show indicator for Step 3
+                const { count: svcCount } = await supabase
+                    .from('services')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('business_id', user.id);
+                
+                if (svcCount === 1) {
+                    addToast('Excelente! Você pode adicionar mais serviços ou ir para o Passo 3: Profissionais.', 'info', true);
+                }
+
+                window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
             }
         }
     };
@@ -262,99 +288,101 @@ const ServicesPage: React.FC = () => {
                 )}
             </div>
 
-            {/* Modal de Cadastro/Edição Premium */}
             <AnimatePresence>
                 {isModalOpen && (
-                    <div className="fixed inset-0 bg-slate-900/60 z-[100] flex justify-center items-center p-4 backdrop-blur-md">
+                    <div className="fixed inset-0 bg-slate-950/60 z-[100] flex justify-center items-end sm:items-center p-0 sm:p-4 backdrop-blur-md">
                         <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            initial={{ opacity: 0, scale: 0.95, y: 100 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800"
+                            exit={{ opacity: 0, scale: 0.95, y: 100 }}
+                            className="bg-white dark:bg-slate-900 rounded-t-[24px] sm:rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col"
                         >
-                            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                <h3 className="text-xl font-serif font-bold text-slate-900 dark:text-slate-100">
+                            <div className="px-5 py-4 sm:px-8 sm:py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 z-10">
+                                <h3 className="text-base sm:text-xl font-serif font-bold text-slate-900 dark:text-slate-100">
                                     {selectedService ? 'Editar Serviço' : 'Novo Serviço'}
                                 </h3>
                                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
-                            <form onSubmit={handleSave} className="p-8 space-y-8">
-                                <div className="space-y-6">
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Serviço</label>
-                                        <input 
-                                            type="text" 
-                                            required
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all dark:text-white"
-                                            placeholder="Ex: Corte Moderno + Lavagem"
-                                        />
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                        <div className="space-y-4">
-                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preço de Venda</label>
-                                            <div className="relative">
-                                                <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                                    <span className="text-xs font-bold text-slate-400">R$</span>
+                            
+                            <div className="overflow-y-auto no-scrollbar flex-1">
+                                <form onSubmit={handleSave} className="p-5 sm:p-8 space-y-5 sm:space-y-8">
+                                    <div className="space-y-5">
+                                        <div className="space-y-2 sm:space-y-4">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Nome do Serviço</label>
+                                            <input 
+                                                type="text" 
+                                                required
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                                placeholder="Ex: Corte Moderno"
+                                            />
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                            <div className="space-y-3 sm:space-y-4">
+                                                <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Preço de Venda</label>
+                                                <div className="relative">
+                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                                        <span className="text-xs font-bold text-slate-400">R$</span>
+                                                    </div>
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.01"
+                                                        required
+                                                        value={formData.price}
+                                                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                                        className="w-full p-3.5 pl-10 sm:p-4 sm:pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                                        placeholder="0.00"
+                                                    />
                                                 </div>
-                                                <input 
-                                                    type="number" 
-                                                    step="0.01"
-                                                    required
-                                                    value={formData.price}
-                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                                    className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all dark:text-white"
-                                                    placeholder="0.00"
-                                                />
+                                            </div>
+                                            <div className="space-y-3 sm:space-y-4">
+                                                <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Duração (min)</label>
+                                                <div className="relative">
+                                                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                    <input 
+                                                        type="number" 
+                                                        required
+                                                        value={formData.duration}
+                                                        onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                                                        className="w-full p-3.5 pl-10 sm:p-4 sm:pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                                        placeholder="30"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="space-y-4">
-                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tempo de Execução (min)</label>
-                                            <div className="relative">
-                                                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                                <input 
-                                                    type="number" 
-                                                    required
-                                                    value={formData.duration}
-                                                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                                                    className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all dark:text-white"
-                                                    placeholder="30"
-                                                />
-                                            </div>
+
+                                        <div className="space-y-3 sm:space-y-4">
+                                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Descrição</label>
+                                            <textarea 
+                                                value={formData.description}
+                                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                                className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all min-h-[100px] sm:min-h-[120px] resize-none dark:text-white"
+                                                placeholder="Detalhes sobre o serviço..."
+                                            />
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descrição e Benefícios</label>
-                                        <textarea 
-                                            value={formData.description}
-                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 outline-none transition-all min-h-[120px] resize-none dark:text-white"
-                                            placeholder="Descreva o que está incluso no serviço e qual o diferencial do resultado final..."
-                                        />
+                                    <div className="pt-2 flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsModalOpen(false)}
+                                            className="w-full sm:flex-1 py-3.5 sm:py-4 text-xs sm:text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button 
+                                            type="submit"
+                                            className="w-full sm:flex-1 py-3.5 sm:py-4 text-xs sm:text-sm font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                                        >
+                                            {selectedService ? 'Salvar Alterações' : 'Criar Serviço'}
+                                        </button>
                                     </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-4">
-                                    <button 
-                                        type="button"
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="flex-1 py-4 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button 
-                                        type="submit"
-                                        className="flex-1 py-4 text-sm font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
-                                    >
-                                        {selectedService ? 'Salvar Alterações' : 'Criar Serviço'}
-                                    </button>
-                                </div>
-                            </form>
+                                </form>
+                            </div>
                         </motion.div>
                     </div>
                 )}

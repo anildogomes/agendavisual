@@ -22,8 +22,21 @@ import {
   ChevronDown,
   CalendarDays,
   Edit,
-  Trash2
+  Trash2,
+  BarChart2,
+  Activity
 } from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell,
+  PieChart,
+  Pie
+} from 'recharts';
 import { supabase } from '../supabaseClient';
 import { useToast, useDemoData } from '../App';
 import { Appointment, Service, Professional, Client } from '../types';
@@ -40,9 +53,13 @@ const AppointmentsPage: React.FC = () => {
     const [viewMode, setViewMode] = useState<'today' | 'all'>('today');
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [serviceFilter, setServiceFilter] = useState<string>('all');
+    const [professionalFilter, setProfessionalFilter] = useState<string>('all');
+    const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isNewClientMode, setIsNewClientMode] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+    const [isChartModalOpen, setIsChartModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         client_id: '',
         service_id: '',
@@ -326,31 +343,68 @@ const AppointmentsPage: React.FC = () => {
         return slots;
     }, []);
 
-    const filteredAppointments = useMemo(() => {
-        return appointments.filter(app => {
-            const client = clients.find(c => c.id === app.client_id);
-            const matchesSearch = client?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                 client?.phone.includes(searchTerm);
-            const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-            return matchesSearch && matchesStatus;
-        });
-    }, [appointments, clients, searchTerm, statusFilter]);
-
-    const stats = useMemo(() => {
-        const reserved = appointments.filter(a => a.status === 'reserved');
+    const agendaStats = useMemo(() => {
+        const total = appointments.length;
         const completed = appointments.filter(a => a.status === 'completed');
-        const totalRevenue = completed.reduce((acc, curr) => {
+        const revenue = completed.reduce((acc, curr) => {
             const service = services.find(s => s.id === curr.service_id);
             return acc + (service?.price || 0);
         }, 0);
+        
+        let occupancy = 0;
+        const activeProfessionals = professionals.length || 1;
+        const dailySlots = timeSlots.length;
+
+        if (viewMode === 'today') {
+            const validApps = appointments.filter(a => a.status !== 'cancelled').length;
+            occupancy = (validApps / (dailySlots * activeProfessionals)) * 100;
+        } else {
+            const validApps = appointments.filter(a => a.status !== 'cancelled').length;
+            occupancy = (validApps / (dailySlots * 24 * activeProfessionals)) * 100;
+        }
 
         return {
-            total: appointments.length,
-            reserved: reserved.length,
-            completed: completed.length,
-            revenue: totalRevenue
+            total,
+            revenue,
+            occupancy: Math.min(Math.round(occupancy), 100)
         };
-    }, [appointments, services]);
+    }, [appointments, services, professionals, viewMode, timeSlots]);
+
+    const chartData = useMemo(() => {
+        const statuses = ['reserved', 'completed', 'cancelled', 'no_show'];
+        const distribution = statuses.map(s => ({
+            name: s === 'reserved' ? 'Pendentes' : s === 'completed' ? 'Concluídos' : s === 'cancelled' ? 'Cancelados' : 'Faltas',
+            value: appointments.filter(a => a.status === s).length,
+            color: s === 'reserved' ? '#6366f1' : s === 'completed' ? '#10b981' : s === 'cancelled' ? '#94a3b8' : '#f43f5e'
+        })).filter(d => d.value > 0);
+
+        const profVolume = professionals.map(p => ({
+            name: p.name.split(' ')[0],
+            agendamentos: appointments.filter(a => a.professional_id === p.id).length
+        })).sort((a, b) => b.agendamentos - a.agendamentos);
+
+        return { distribution, profVolume };
+    }, [appointments, professionals]);
+
+    const filteredAppointments = useMemo(() => {
+        return appointments.filter(app => {
+            const client = clients.find(c => c.id === app.client_id);
+            const service = services.find(s => s.id === app.service_id);
+            const professional = professionals.find(p => p.id === app.professional_id);
+            
+            const matchesSearch = 
+                client?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                client?.phone.includes(searchTerm) ||
+                service?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                professional?.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
+            const matchesService = serviceFilter === 'all' || app.service_id === serviceFilter;
+            const matchesProfessional = professionalFilter === 'all' || app.professional_id === professionalFilter;
+
+            return matchesSearch && matchesStatus && matchesService && matchesProfessional;
+        });
+    }, [appointments, clients, services, professionals, searchTerm, statusFilter, serviceFilter, professionalFilter]);
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -363,430 +417,484 @@ const AppointmentsPage: React.FC = () => {
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-8 animate-fade-in mb-20">
-            {/* Action Bar (Simplified) */}
-            <div className="flex justify-end mb-2">
-                <button 
-                    onClick={() => openModal()}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-200 dark:shadow-none"
-                >
-                    <Plus className="w-5 h-5" />
-                    Novo Agendamento
-                </button>
-            </div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-12 space-y-6 sm:space-y-16 mb-32 animate-fade-in font-sans selection:bg-slate-900 selection:text-white dark:selection:bg-white dark:selection:text-slate-900">
+            {/* Header: Global Actions & Navigation */}
+            <header className="space-y-6 sm:space-y-8">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 sm:gap-6">
+                    <button 
+                        onClick={() => openModal()}
+                        className="flex items-center justify-center gap-2 sm:gap-3 px-6 py-4 sm:px-8 sm:py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[20px] sm:rounded-[28px] font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-slate-900/10 dark:shadow-none w-full sm:w-auto order-first"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Novo Agendamento
+                    </button>
 
-            {/* View Select & Search */}
-            <div className="space-y-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full md:w-auto">
-                        <button 
-                            onClick={() => setViewMode('today')}
-                            className={`flex-1 md:w-32 py-3 text-xs font-bold rounded-xl transition-all ${
-                                viewMode === 'today' 
-                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            Hoje
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('all')}
-                            className={`flex-1 md:w-32 py-3 text-xs font-bold rounded-xl transition-all ${
-                                viewMode === 'all' 
-                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            Todos
-                        </button>
-                    </div>
-
-                    <div className="relative flex-1 group">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-gold-500 transition-colors" />
-                        <input 
-                            type="text" 
-                            placeholder="Buscar por cliente ou telefone..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-14 pr-6 py-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-4 focus:ring-gold-500/10 focus:border-gold-500 outline-none transition-all dark:text-white"
+                    {/* Mini Dashboards for Appointments */}
+                    <div className="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar w-full sm:w-auto py-1 items-center">
+                        <AgendaMiniStat 
+                            label="Agendamentos" 
+                            value={agendaStats.total.toString()} 
+                            icon={<CalendarDays className="w-3 h-3" />}
                         />
-                    </div>
-
-                    {viewMode === 'today' && (
-                        <div className="flex items-center justify-center gap-4 bg-white dark:bg-slate-900 px-3 py-2 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm mx-auto md:mx-0 w-fit">
-                            <button onClick={() => changeDate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                                <ChevronLeft className="w-5 h-5 text-slate-400" />
-                            </button>
-                            <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100 min-w-[120px] text-center uppercase tracking-tighter">
-                                {formatDate(selectedDate)}
-                            </span>
-                            <button onClick={() => changeDate(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                                <ChevronRight className="w-5 h-5 text-slate-400" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* Status Filters */}
-                <div className="flex p-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl overflow-x-auto no-scrollbar gap-1">
-                    {[
-                        { id: 'all', label: 'Todos' },
-                        { id: 'reserved', label: 'Reservado' },
-                        { id: 'completed', label: 'Concluído' },
-                        { id: 'no_show', label: 'Não Veio' },
-                        { id: 'cancelled', label: 'Desistiu' }
-                    ].map(f => (
+                        <AgendaMiniStat 
+                            label="Receita" 
+                            value={`R$ ${agendaStats.revenue.toLocaleString()}`} 
+                            icon={<DollarSign className="w-3 h-3 text-emerald-600" />}
+                        />
+                        <AgendaMiniStat 
+                            label="Ocupação" 
+                            value={`${agendaStats.occupancy}%`} 
+                            icon={<Activity className="w-3 h-3 text-indigo-500" />}
+                        />
                         <button 
-                            key={f.id}
-                            onClick={() => setStatusFilter(f.id)}
-                            className={`px-6 py-2.5 text-[10px] sm:text-xs font-bold rounded-xl transition-all whitespace-nowrap ${
-                                statusFilter === f.id 
-                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
-                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
-                            }`}
+                            onClick={() => setIsChartModalOpen(true)}
+                            className="p-3.5 sm:p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm active:scale-95 flex items-center gap-2 group shrink-0"
+                            title="Ver Gráficos"
                         >
-                            {f.label}
+                            <BarChart2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:inline">Ver Gráficos</span>
                         </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                <StatCard title="Total" value={stats.total.toString()} icon={<CalendarDays className="w-5 h-5" />} color="slate" />
-                <StatCard title="Reservados" value={stats.reserved.toString()} icon={<Clock className="w-5 h-5" />} color="gold" />
-                <StatCard title="Concluídos" value={stats.completed.toString()} icon={<Check className="w-5 h-5" />} color="emerald" />
-                <StatCard title="Receita" value={`R$ ${stats.revenue.toFixed(0)}`} icon={<DollarSign className="w-5 h-5" />} color="blue" />
-            </div>
-
-            {/* Lista de Agendamentos */}
-            <div className="space-y-4">
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center py-24 gap-4">
-                        <Loader2 className="w-10 h-10 text-gold-500 animate-spin" />
-                        <p className="text-slate-800 dark:text-slate-400 text-sm font-bold">Sincronizando sua agenda...</p>
                     </div>
-                ) : filteredAppointments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-24 text-center px-4 bg-white dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
-                        <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                            <CalendarIcon className="w-10 h-10 text-slate-300" />
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 w-full sm:w-auto">
+                        {/* Compact Date Info on the Left of navigation group */}
+                        {viewMode === 'today' && (
+                            <div className="flex items-center gap-1 sm:gap-4">
+                                <button onClick={() => changeDate(-1)} className="p-2 sm:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all text-slate-400 hover:text-slate-900">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <div className="text-center min-w-[70px] sm:min-w-[140px]">
+                                    <span className="text-[11px] sm:text-base font-black text-slate-900 dark:text-white tracking-tight">
+                                        {selectedDate.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '')}
+                                    </span>
+                                </div>
+                                <button onClick={() => changeDate(1)} className="p-2 sm:p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all text-slate-400 hover:text-slate-900">
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* View Switcher on the Right */}
+                        <div className="flex p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-800/50 rounded-[14px] sm:rounded-[24px]">
+                            <button 
+                                onClick={() => setViewMode('today')}
+                                className={`px-4 sm:px-10 py-2 sm:py-3.5 text-[9px] sm:text-xs font-black uppercase tracking-widest rounded-[11px] sm:rounded-[18px] transition-all whitespace-nowrap ${
+                                    viewMode === 'today' 
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md' 
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                Hoje
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('all')}
+                                className={`px-4 sm:px-10 py-2 sm:py-3.5 text-[9px] sm:text-xs font-black uppercase tracking-widest rounded-[11px] sm:rounded-[18px] transition-all whitespace-nowrap ${
+                                    viewMode === 'all' 
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md' 
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                Mês
+                            </button>
                         </div>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Nenhum agendamento encontrado</h3>
-                        <p className="text-slate-800 dark:text-slate-400 text-sm font-medium max-w-xs">Não há atendimentos marcados para este dia com os filtros atuais.</p>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                        <AnimatePresence mode="popLayout">
-                            {filteredAppointments.map((app) => {
-                                const client = clients.find(c => c.id === app.client_id);
-                                const service = services.find(s => s.id === app.service_id);
-                                const professional = professionals.find(p => p.id === app.professional_id);
+                </div>
+            </header>
 
-                                return (
+            {/* Controls Bar: Search & Filters Unified */}
+            <section className="space-y-4 sm:space-y-8">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-6 w-full">
+                    <div className="flex items-center gap-2 sm:gap-6 flex-1">
+                        {/* Integrated Search - Expands on mobile */}
+                        <div className="relative flex-1 group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-slate-900 dark:group-focus-within:text-white transition-colors" />
+                            <input 
+                                type="text" 
+                                placeholder="Buscar..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-3 sm:py-3.5 bg-slate-50 dark:bg-slate-900/50 border border-transparent focus:border-slate-100 dark:focus:border-slate-800 rounded-[18px] sm:rounded-[24px] text-[10px] sm:text-xs font-bold focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all outline-none dark:text-white placeholder:text-slate-300"
+                            />
+                        </div>
+
+                        {/* Advanced Filter Button */}
+                        <div className="relative shrink-0">
+                            <button 
+                                onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+                                className={`p-3 sm:p-3.5 rounded-[18px] sm:rounded-[24px] border transition-all flex items-center gap-2 ${
+                                    isFilterMenuOpen || serviceFilter !== 'all' || professionalFilter !== 'all'
+                                        ? 'bg-slate-900 border-slate-900 text-white dark:bg-white dark:border-white dark:text-slate-900 shadow-lg'
+                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 dark:bg-slate-900 dark:border-slate-800'
+                                }`}
+                            >
+                                <Filter className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Filtros</span>
+                            </button>
+
+                        <AnimatePresence>
+                            {isFilterMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setIsFilterMenuOpen(false)} />
                                     <motion.div 
-                                        layout
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        key={app.id} 
-                                        className="bg-white dark:bg-slate-900/50 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-all group flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6"
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        className="absolute right-0 top-full mt-4 w-72 sm:w-80 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[24px] sm:rounded-[32px] shadow-2xl z-50 p-6 space-y-6"
                                     >
-                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center border border-slate-100 dark:border-slate-700 shadow-inner shrink-0">
-                                                    <span className="text-lg font-bold text-slate-950 dark:text-slate-100 leading-none">{app.time}</span>
-                                                    <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-tighter mt-1">{app.date.split('-').reverse().slice(0, 2).join('/')}</span>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-3">
-                                                        <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">{client?.name || 'Cliente'}</h4>
-                                                        <StatusBadge status={app.status} />
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 items-center text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <Scissors className="w-3 h-3 text-gold-500" />
-                                                            <span>{service?.name || 'Serviço'}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <User className="w-3 h-3 text-slate-400" />
-                                                            <span>{professional?.name || 'Profissional'}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">Profissional</label>
+                                                <select 
+                                                    value={professionalFilter}
+                                                    onChange={(e) => setProfessionalFilter(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-[16px] text-xs font-bold outline-none border border-transparent focus:border-slate-100 dark:text-white"
+                                                >
+                                                    <option value="all">Todos os Profissionais</option>
+                                                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">Serviço</label>
+                                                <select 
+                                                    value={serviceFilter}
+                                                    onChange={(e) => setServiceFilter(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-[16px] text-xs font-bold outline-none border border-transparent focus:border-slate-100 dark:text-white"
+                                                >
+                                                    <option value="all">Todos os Serviços</option>
+                                                    {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                </select>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                                            <a 
-                                                href={`https://wa.me/${client?.phone.replace(/\D/g, '')}`} 
-                                                target="_blank" 
-                                                rel="noreferrer"
-                                                className="p-3 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-xl transition-all hover:scale-105 active:scale-95"
-                                                title="WhatsApp"
+                                        <div className="pt-2 flex gap-2">
+                                            <button 
+                                                onClick={() => { setServiceFilter('all'); setProfessionalFilter('all'); setIsFilterMenuOpen(false); }}
+                                                className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors"
                                             >
-                                                <MessageCircle className="w-5 h-5" />
-                                            </a>
-                                            
-                                            <div className="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-1" />
-
-                                            {app.status === 'reserved' && (
-                                                <>
-                                                    <button 
-                                                        onClick={() => handleStatusChange(app.id, 'completed')}
-                                                        className="px-4 py-2.5 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-xl hover:opacity-90 transition-all shadow-md active:scale-95"
-                                                    >
-                                                        Concluir
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleStatusChange(app.id, 'no_show')}
-                                                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
-                                                    >
-                                                        Não Veio
-                                                    </button>
-                                                </>
-                                            )}
-
-                                            <div className="relative group/actions">
-                                                <button className="p-3 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                                                    <MoreVertical className="w-5 h-5" />
-                                                </button>
-                                                <div className="absolute right-0 bottom-full mb-2 w-40 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-2xl opacity-0 invisible group-hover/actions:opacity-100 group-hover/actions:visible transition-all p-2 z-10 flex flex-col gap-1">
-                                                    <button onClick={() => openModal(app)} className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors">
-                                                        <Edit className="w-4 h-4" />
-                                                        Editar
-                                                    </button>
-                                                    <button onClick={() => handleStatusChange(app.id, 'cancelled')} className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
-                                                        <X className="w-4 h-4" />
-                                                        Desistiu
-                                                    </button>
-                                                    <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
-                                                    <button onClick={() => handleDelete(app.id)} className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                                                        <Trash2 className="w-4 h-4" />
-                                                        Excluir
-                                                    </button>
-                                                </div>
-                                            </div>
+                                                Limpar
+                                            </button>
+                                            <button 
+                                                onClick={() => setIsFilterMenuOpen(false)}
+                                                className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-900 dark:text-white"
+                                            >
+                                                Aplicar
+                                            </button>
                                         </div>
                                     </motion.div>
-                                );
-                            })}
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
+
+                {/* Integrated Filter Group - Scrollable next to search */}
+                    <div className="flex gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-1 items-center w-full">
+                        {[
+                            { id: 'all', label: 'Tudo' },
+                            { id: 'reserved', label: 'Pendentes' },
+                            { id: 'completed', label: 'Concluídos' },
+                            { id: 'cancelled', label: 'Cancelados' }
+                        ].map(f => (
+                            <button 
+                                key={f.id}
+                                onClick={() => setStatusFilter(f.id)}
+                                className={`px-4 sm:px-8 py-2.5 sm:py-3 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-full transition-all border whitespace-nowrap ${
+                                    statusFilter === f.id 
+                                        ? 'bg-slate-100 border-slate-200 text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white shadow-sm' 
+                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:hover:border-slate-700'
+                                }`}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* List with Timeline Aesthetic */}
+            <main className="space-y-6">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-40 gap-8">
+                        <Loader2 className="w-10 h-10 text-slate-200 animate-spin" />
+                        <p className="text-slate-300 text-xs font-black uppercase tracking-widest">Sincronizando...</p>
+                    </div>
+                ) : filteredAppointments.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-24 sm:py-40 text-center bg-slate-50 dark:bg-slate-900/40 rounded-[32px] sm:rounded-[56px] border border-dashed border-slate-200 dark:border-slate-800/40">
+                        <h3 className="text-2xl sm:text-4xl font-black text-slate-200 dark:text-slate-800 tracking-tighter uppercase">Agenda Livre</h3>
+                        <p className="text-slate-400 dark:text-slate-500 text-[10px] sm:text-sm font-bold max-w-xs mt-2 sm:mt-4">Nenhum compromisso encontrado.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-y-6 sm:gap-x-8 sm:gap-y-8">
+                        <AnimatePresence mode="popLayout">
+                            {filteredAppointments.map((app) => (
+                                <AppointmentRow 
+                                    key={app.id}
+                                    app={app}
+                                    client={clients.find(c => c.id === app.client_id)}
+                                    service={services.find(s => s.id === app.service_id)}
+                                    professional={professionals.find(p => p.id === app.professional_id)}
+                                    onStatusChange={handleStatusChange}
+                                    onEdit={openModal}
+                                    onDelete={handleDelete}
+                                />
+                            ))}
                         </AnimatePresence>
                     </div>
                 )}
-            </div>
+            </main>
 
-            {/* Modal de Agendamento */}
+            {/* Modal - Modern Native Sheet */}
             <AnimatePresence>
                 {isModalOpen && (
-                    <div className="fixed inset-0 bg-slate-100/80 dark:bg-slate-950/90 z-[100] flex justify-center items-end sm:items-center overflow-hidden">
+                    <div className="fixed inset-0 bg-white/60 dark:bg-slate-950/80 backdrop-blur-2xl z-[100] flex justify-center items-end sm:items-center p-0 sm:p-6">
                         <motion.div 
-                            initial={{ opacity: 0, y: 100 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 100 }}
-                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-[40px] sm:rounded-[40px] shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]"
+                            initial={{ opacity: 0, scale: 0.9, y: 100 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 100 }}
+                            className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-t-[32px] sm:rounded-[64px] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[96vh] sm:max-h-[90vh] overflow-hidden"
                         >
-                            {/* Modal Header */}
-                            <div className="relative px-8 py-8 flex items-center justify-center border-b border-slate-50 dark:border-slate-800">
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100">
-                                    {selectedAppointment ? 'Editar Agendamento' : 'Novo Agendamento'}
+                            <header className="px-5 sm:px-12 py-6 sm:py-12 flex items-center justify-between shrink-0">
+                                <h3 className="text-xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                    {selectedAppointment ? 'Editar' : 'Novo'}
                                 </h3>
                                 <button 
                                     onClick={() => setIsModalOpen(false)} 
-                                    className="absolute right-6 top-1/2 -translate-y-1/2 p-2 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-full transition-all"
+                                    className="p-2.5 sm:p-4 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-full transition-all"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
                                 </button>
-                            </div>
+                            </header>
 
-                            {/* Modal Body */}
-                            <div className="flex-1 overflow-y-auto px-6 py-8 no-scrollbar space-y-8">
-                                {/* Details Section */}
-                                <div className="bg-slate-50/50 dark:bg-slate-800/20 p-6 rounded-[32px] border border-slate-100 dark:border-slate-800 space-y-6">
-                                    {/* Client Selection */}
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center px-1">
-                                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">
-                                                {isNewClientMode ? 'Dados do Novo Cliente' : 'Cliente'}
-                                            </label>
-                                            <button 
-                                                onClick={() => setIsNewClientMode(!isNewClientMode)}
-                                                className="text-[10px] font-black text-primary-600 hover:text-primary-700 dark:text-primary-400 uppercase tracking-[0.2em]"
-                                            >
-                                                {isNewClientMode ? 'Selecionar Existente' : 'Novo Cliente'}
-                                            </button>
-                                        </div>
-                                        
-                                        {isNewClientMode ? (
-                                            <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                                                <div className="relative">
-                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                                        <User className="w-5 h-5" />
-                                                    </div>
+                            <div className="flex-1 overflow-y-auto px-5 sm:px-12 pb-8 sm:pb-12 no-scrollbar grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-16">
+                                {/* Left Side: Who & What */}
+                                <div className="space-y-6 sm:space-y-10">
+                                    <div className="space-y-6 sm:space-y-10 bg-slate-50 dark:bg-slate-800/20 p-5 sm:p-10 rounded-[28px] sm:rounded-[48px]">
+                                        <div className="space-y-3 sm:space-y-4">
+                                            <div className="flex justify-between items-center px-1">
+                                                <label className="text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest">Cliente</label>
+                                                <button onClick={() => setIsNewClientMode(!isNewClientMode)} className="text-[9px] sm:text-[10px] font-black underline underline-offset-4 decoration-primary-500/20">
+                                                    {isNewClientMode ? 'Lista' : 'Novo'}
+                                                </button>
+                                            </div>
+                                            
+                                            {isNewClientMode ? (
+                                                <div className="space-y-3 sm:space-y-4">
                                                     <input 
-                                                        required
                                                         type="text"
-                                                        placeholder="Nome Completo"
+                                                        placeholder="Nome"
                                                         value={newClientData.name}
                                                         onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
-                                                        className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
+                                                        className="w-full px-5 py-4 sm:px-8 sm:py-5 bg-white dark:bg-slate-900/50 rounded-[18px] sm:rounded-[24px] text-sm sm:text-lg font-bold outline-none ring-4 ring-transparent focus:ring-slate-900/5 dark:text-white"
                                                     />
+                                                    <PhoneInput value={newClientData.phone} onChange={(val) => setNewClientData({ ...newClientData, phone: val })} />
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <PhoneInput 
-                                                        value={newClientData.phone}
-                                                        onChange={(val) => setNewClientData({ ...newClientData, phone: val })}
-                                                        placeholder="WhatsApp (Ex: 11 99999-9999)"
-                                                        required
-                                                    />
+                                            ) : (
+                                                <div className="relative group">
+                                                    <select 
+                                                        value={formData.client_id}
+                                                        onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                                                        className="w-full px-5 py-4 sm:px-8 sm:py-5 bg-white dark:bg-slate-900/50 rounded-[18px] sm:rounded-[24px] text-sm sm:text-lg font-bold appearance-none outline-none dark:text-white"
+                                                    >
+                                                        <option value="" disabled>Escolher...</option>
+                                                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-5 sm:right-8 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-200 pointer-events-none" />
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div className="relative">
-                                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                                    <User className="w-5 h-5" />
-                                                </div>
-                                                <select 
-                                                    required
-                                                    value={formData.client_id}
-                                                    onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                                                    className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all appearance-none"
-                                                >
-                                                    <option value="" disabled>Selecione...</option>
-                                                    {clients.map(c => (
-                                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                                    ))}
-                                                </select>
-                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                                                    <ChevronDown className="w-4 h-4" />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                            )}
+                                        </div>
 
-                                    {/* Service Selection */}
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1">Serviço</label>
-                                        <div className="relative">
-                                            <select 
-                                                required
-                                                value={formData.service_id}
-                                                onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
-                                                className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all appearance-none"
-                                            >
-                                                <option value="" disabled>Selecione...</option>
-                                                {services.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} - R$ {s.price.toFixed(2)}</option>
-                                                ))}
-                                            </select>
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                                                <ChevronDown className="w-4 h-4" />
+                                        <div className="space-y-3 sm:space-y-4">
+                                            <label className="text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest px-1">Serviço</label>
+                                            <div className="relative">
+                                                <select 
+                                                    value={formData.service_id}
+                                                    onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
+                                                    className="w-full px-5 py-4 sm:px-8 sm:py-5 bg-white dark:bg-slate-900/50 rounded-[18px] sm:rounded-[24px] text-sm sm:text-lg font-bold appearance-none outline-none dark:text-white text-emerald-600 dark:text-emerald-400"
+                                                >
+                                                    <option value="" disabled>Escolher...</option>
+                                                    {services.map(s => <option key={s.id} value={s.id}>{s.name} • R$ {s.price.toFixed(0)}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-5 sm:right-8 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-200 pointer-events-none" />
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Professional Selection */}
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1">Profissional</label>
-                                        <div className="relative">
-                                            <select 
-                                                required
-                                                value={formData.professional_id}
-                                                onChange={(e) => setFormData({ ...formData, professional_id: e.target.value })}
-                                                className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all appearance-none"
-                                            >
-                                                <option value="" disabled>Selecione...</option>
-                                                {professionals.map(p => (
-                                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                                ))}
-                                            </select>
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                                                <ChevronDown className="w-4 h-4" />
+                                        <div className="space-y-3 sm:space-y-4">
+                                            <label className="text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest px-1">Profissional</label>
+                                            <div className="relative">
+                                                <select 
+                                                    value={formData.professional_id}
+                                                    onChange={(e) => setFormData({ ...formData, professional_id: e.target.value })}
+                                                    className="w-full px-5 py-4 sm:px-8 sm:py-5 bg-white dark:bg-slate-900/50 rounded-[18px] sm:rounded-[24px] text-sm sm:text-lg font-bold appearance-none outline-none dark:text-white"
+                                                >
+                                                    <option value="" disabled>Escolher...</option>
+                                                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-5 sm:right-8 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-slate-200 pointer-events-none" />
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Date & Time Section */}
-                                <div className="bg-slate-50/50 dark:bg-slate-800/20 p-6 rounded-[32px] border border-slate-100 dark:border-slate-800 space-y-6">
-                                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1">Data & Hora</label>
-                                    
-                                    {/* Horizontal Date Picker */}
-                                    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                                        {upcomingDays.map((day, idx) => {
-                                            const dateStr = day.toISOString().split('T')[0];
-                                            const isSelected = formData.date === dateStr;
-                                            const weekday = day.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase().replace('.', '');
-                                            const dayNum = day.getDate();
-
-                                            return (
-                                                <button
-                                                    key={idx}
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, date: dateStr })}
-                                                    className={`
-                                                        min-w-[70px] flex flex-col items-center justify-center p-4 rounded-2xl transition-all shadow-sm
-                                                        ${isSelected 
-                                                            ? 'bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 scale-105 z-10' 
-                                                            : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}
-                                                    `}
-                                                >
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-white/60 dark:text-slate-900/60' : 'text-slate-400'}`}>
-                                                        {weekday}
-                                                    </span>
-                                                    <span className="text-xl font-black">
-                                                        {dayNum}
-                                                    </span>
-                                                </button>
-                                            );
-                                        })}
+                                {/* Right Side: When */}
+                                <div className="space-y-6 sm:space-y-10">
+                                    <div className="space-y-4 sm:space-y-8">
+                                        <label className="block text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest px-1">Data</label>
+                                        <div className="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar pb-2 sm:pb-4 px-1">
+                                            {upcomingDays.map((day, idx) => {
+                                                const dateStr = day.toISOString().split('T')[0];
+                                                const isSelected = formData.date === dateStr;
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, date: dateStr })}
+                                                        className={`min-w-[70px] sm:min-w-[100px] py-4 sm:py-10 rounded-[18px] sm:rounded-[40px] transition-all flex flex-col items-center justify-center gap-0.5 sm:gap-2 shrink-0 ${
+                                                            isSelected 
+                                                                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 scale-105 shadow-xl z-10' 
+                                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100'
+                                                        }`}
+                                                    >
+                                                        <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest opacity-60">
+                                                            {day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                                                        </span>
+                                                        <span className="text-lg sm:text-3xl font-black">{day.getDate()}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
 
-                                    {/* Time Selector */}
-                                    <div className="space-y-4 pt-4">
-                                        {!formData.professional_id || !formData.date ? (
-                                            <div className="py-12 flex items-center justify-center text-slate-400 text-sm font-medium italic">
-                                                Selecione profissional e data.
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {timeSlots.map((time) => {
-                                                    const isSelected = selectedTime === time;
-                                                    return (
-                                                        <button
-                                                            key={time}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedTime(time);
-                                                                setFormData({ ...formData, time });
-                                                            }}
-                                                            className={`
-                                                                py-3 text-xs font-bold rounded-xl transition-all border
-                                                                ${isSelected 
-                                                                    ? 'bg-primary-600 border-primary-600 text-white shadow-lg' 
-                                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-primary-500'}
-                                                            `}
-                                                        >
-                                                            {time}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                    <div className="space-y-4 sm:space-y-8">
+                                        <label className="block text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest px-1">Horário</label>
+                                        <div className="grid grid-cols-4 gap-2 sm:gap-3 px-1">
+                                            {timeSlots.map((time) => {
+                                                const isSelected = selectedTime === time;
+                                                return (
+                                                    <button
+                                                        key={time}
+                                                        type="button"
+                                                        onClick={() => { setSelectedTime(time); setFormData({ ...formData, time }); }}
+                                                        className={`py-3 sm:py-5 rounded-[14px] sm:rounded-[24px] text-[10px] sm:text-xs font-black transition-all ${
+                                                            isSelected 
+                                                                ? 'bg-primary-600 text-white shadow-lg scale-105 z-10' 
+                                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-slate-100'
+                                                        }`}
+                                                    >
+                                                        {time}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Modal Footer / Action Button */}
-                            <div className="p-8 border-t border-slate-50 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-[40px] shadow-[0_-20px_50px_-12px_rgba(0,0,0,0.05)]">
+                            <footer className="px-5 sm:px-12 py-6 sm:py-12 bg-slate-50 dark:bg-slate-800/30 flex flex-col sm:flex-row gap-4 sm:gap-6 shrink-0">
                                 <button 
                                     type="button"
                                     onClick={handleSave}
                                     disabled={(!isNewClientMode && !formData.client_id) || (isNewClientMode && (!newClientData.name || !newClientData.phone)) || !formData.service_id || !formData.professional_id || !selectedTime}
-                                    className="w-full py-5 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-black text-sm uppercase tracking-[0.2em] hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-20 disabled:grayscale"
+                                    className="flex-1 py-4 sm:py-8 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[20px] sm:rounded-[32px] font-black text-[11px] sm:text-sm uppercase tracking-[0.2em] shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-20"
                                 >
-                                    {selectedAppointment ? 'Atualizar Agendamento' : 'Confirmar Agendamento'}
+                                    Confirmar Atendimento
                                 </button>
+                            </footer>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Floating Charts Modal */}
+            <AnimatePresence>
+                {isChartModalOpen && (
+                    <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[32px] sm:rounded-[48px] shadow-2xl p-6 sm:p-10 space-y-8 relative overflow-hidden"
+                        >
+                            <button 
+                                onClick={() => setIsChartModalOpen(false)}
+                                className="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <div className="space-y-1">
+                                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Visão Detalhada</h3>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">{viewMode === 'today' ? 'Dados de Hoje' : 'Dados do Mês'}</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 overflow-y-auto pr-1 no-scrollbar max-h-[60vh] sm:max-h-none">
+                                {/* Distribution Chart */}
+                                <div className="space-y-4 bg-slate-50 dark:bg-slate-800/20 p-4 rounded-3xl">
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">Distribuição de Status</p>
+                                    <div className="h-40 sm:h-52 w-full flex items-center justify-center">
+                                        {chartData.distribution.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={chartData.distribution}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={45}
+                                                        outerRadius={65}
+                                                        paddingAngle={5}
+                                                        dataKey="value"
+                                                    >
+                                                        {chartData.distribution.map((entry: any, index: number) => (
+                                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip 
+                                                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px' }}
+                                                    />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 font-bold italic">Sem dados suficientes</p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1.5 justify-center">
+                                        {chartData.distribution.map((d, i) => (
+                                            <div key={i} className="flex items-center gap-1">
+                                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+                                                <span className="text-[8px] font-black uppercase text-slate-500">{d.name} ({d.value})</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Professional Performance */}
+                                <div className="space-y-4 bg-slate-50 dark:bg-slate-800/20 p-4 rounded-3xl">
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">Volume por Profissional</p>
+                                    <div className="h-40 sm:h-52 w-full">
+                                        {chartData.profVolume.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={chartData.profVolume} layout="vertical">
+                                                    <XAxis type="number" hide />
+                                                    <YAxis dataKey="name" type="category" width={50} axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900', fill: '#94a3b8', textTransform: 'uppercase' }} />
+                                                    <Tooltip 
+                                                        cursor={{ fill: 'transparent' }}
+                                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px' }}
+                                                        labelStyle={{ display: 'none' }}
+                                                    />
+                                                    <Bar dataKey="agendamentos" fill="#0f172a" radius={[0, 8, 8, 0]} barSize={10} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 font-bold italic text-center py-10">Nenhum registro</p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center p-3 sm:p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
+                                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Ocupação</span>
+                                            <span className="text-xs font-black text-slate-900 dark:text-white">{agendaStats.occupancy}%</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </motion.div>
                     </div>
@@ -796,41 +904,164 @@ const AppointmentsPage: React.FC = () => {
     );
 };
 
-const StatCard: React.FC<{ title: string, value: string, icon: React.ReactNode, color: string }> = ({ title, value, icon, color }) => (
-    <div className="bg-white dark:bg-slate-900/50 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2 sm:space-y-4">
-        <div className="flex items-center justify-between">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 scale-90 sm:scale-100">
-                {icon}
-            </div>
-        </div>
-        <div className="space-y-0.5 sm:space-y-1">
-            <p className="text-[9px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider truncate">{title}</p>
-            <h4 className="text-lg sm:text-2xl font-bold text-slate-950 dark:text-slate-50 truncate">{value}</h4>
-        </div>
-    </div>
-);
-
-const StatusBadge: React.FC<{ status: Appointment['status'] }> = ({ status }) => {
-    const styles = {
-        reserved: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50',
-        completed: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
-        cancelled: 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50',
-        no_show: 'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-    };
-
-    const labels = {
-        reserved: 'Reservado',
-        completed: 'Concluído',
-        cancelled: 'Desistiu',
-        no_show: 'Não Veio'
+const AppointmentRow: React.FC<{ 
+    app: Appointment, 
+    client?: Client, 
+    service?: Service, 
+    professional?: Professional,
+    onStatusChange: (id: string, status: Appointment['status']) => void,
+    onEdit: (app: Appointment) => void,
+    onDelete: (id: string) => void
+}> = ({ app, client, service, professional, onStatusChange, onEdit, onDelete }) => {
+    const statusColors = {
+        reserved: 'border-indigo-500',
+        completed: 'border-emerald-500',
+        cancelled: 'border-orange-500',
+        no_show: 'border-slate-300'
     };
 
     return (
-        <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase border ${styles[status]}`}>
+        <motion.div 
+            layout
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="flex gap-3 sm:gap-4 lg:gap-5 items-start"
+        >
+            {/* External Time & Indicator */}
+            <div className="flex flex-col items-center pt-2 min-w-[50px] sm:min-w-[60px] lg:min-w-[70px]">
+                <span className="text-sm sm:text-lg lg:text-xl font-black text-slate-900 dark:text-white tracking-tighter leading-tight">{app.time}</span>
+                <div className={`w-1.5 h-1.5 rounded-full mt-2 ${
+                    app.status === 'reserved' ? 'bg-indigo-500' : 
+                    app.status === 'completed' ? 'bg-emerald-500' : 
+                    app.status === 'cancelled' ? 'bg-orange-500' : 'bg-slate-300'
+                }`} />
+            </div>
+
+            {/* Main Card */}
+            <div className={`flex-1 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[18px] sm:rounded-[22px] lg:rounded-[28px] overflow-hidden shadow-sm hover:shadow-md hover:translate-x-1 lg:hover:translate-x-1 transition-all border-l-4 ${statusColors[app.status]} h-full`}>
+                <div className="p-4 lg:p-5 space-y-4">
+                    {/* Top Row: Client & Badge */}
+                    <div className="flex justify-between items-start gap-3">
+                        <div className="space-y-0.5">
+                            <h4 className="text-base sm:text-lg lg:text-xl font-black text-slate-900 dark:text-white tracking-tighter leading-none truncate max-w-[120px] sm:max-w-none">{client?.name || 'Cliente'}</h4>
+                        </div>
+                        <StatusBadge status={app.status} />
+                    </div>
+
+                    {/* Info Rows */}
+                    <div className="space-y-2.5">
+                        <div className="flex items-center justify-between text-slate-400 dark:text-slate-500 font-bold text-[10px] sm:text-xs">
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                <Scissors className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                                <span className="truncate">{service?.name || 'Serviço'}</span>
+                            </div>
+                            <span className="opacity-60 whitespace-nowrap ml-2">{service?.duration} min</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400 dark:text-slate-500 font-bold text-[10px] sm:text-xs">
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                                <span className="truncate">{professional?.name || 'Profissional'}</span>
+                            </div>
+                            <span className="text-slate-900 dark:text-white font-black whitespace-nowrap ml-2">R$ {service?.price.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                    </div>
+
+                    <div className="h-px bg-slate-50 dark:bg-slate-800/50 w-full" />
+
+                    {/* Primary Actions Row */}
+                    <div className="flex items-center gap-1.5">
+                        <a 
+                            href={`https://wa.me/${client?.phone.replace(/\D/g, '')}?text=Olá ${client?.name}, lembrete do seu agendamento hoje às ${app.time}.`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex-1 text-center py-2.5 sm:py-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl lg:rounded-2xl text-[8px] sm:text-[9px] lg:text-[10px] font-black uppercase tracking-[0.05em] lg:tracking-widest hover:scale-[1.02] transition-all"
+                        >
+                            Lembrar
+                        </a>
+                        
+                        {(app.status === 'reserved' || app.status === 'completed') && (
+                            <button 
+                                onClick={() => onStatusChange(app.id, 'no_show')}
+                                className="flex-1 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 rounded-xl lg:rounded-2xl text-[8px] sm:text-[9px] lg:text-[10px] font-black uppercase tracking-[0.05em] lg:tracking-widest hover:scale-[1.02] transition-all"
+                            >
+                                Ausente
+                            </button>
+                        )}
+
+                        {app.status === 'reserved' && (
+                            <button 
+                                onClick={() => onStatusChange(app.id, 'completed')}
+                                className="flex-1 py-2.5 sm:py-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl lg:rounded-2xl text-[8px] sm:text-[9px] lg:text-[10px] font-black uppercase tracking-[0.05em] lg:tracking-widest hover:scale-[1.02] transition-all"
+                            >
+                                Concluir
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Utils Footer Row - RIGHT ALIGNED */}
+                    <div className="flex items-center justify-end gap-3 pt-1">
+                        <button 
+                            onClick={() => onEdit(app)}
+                            className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        >
+                            Editar
+                        </button>
+                        <div className="h-3 w-px bg-slate-100 dark:bg-slate-800" />
+                        <button 
+                            onClick={() => onDelete(app.id)}
+                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                            <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+const StatusDot: React.FC<{ status: Appointment['status'] }> = ({ status }) => {
+    const colors = {
+        reserved: 'bg-indigo-500',
+        completed: 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]',
+        cancelled: 'bg-slate-300',
+        no_show: 'bg-rose-500'
+    };
+    return <div className={`w-3 h-3 rounded-full ${colors[status]} mb-1`} />;
+};
+
+const StatusBadge: React.FC<{ status: Appointment['status'] }> = ({ status }) => {
+    const styles = {
+        reserved: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10',
+        completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10',
+        cancelled: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10',
+        no_show: 'bg-slate-100 text-slate-600 dark:bg-slate-800'
+    };
+
+    const labels = {
+        reserved: 'RESERVADO',
+        completed: 'CONCLUÍDO',
+        cancelled: 'CANCELADO',
+        no_show: 'NÃO VEIO'
+    };
+
+    return (
+        <span className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] ${styles[status]}`}>
             {labels[status]}
         </span>
     );
 };
+
+const AgendaMiniStat: React.FC<{ icon: React.ReactNode, label: string, value: string }> = ({ icon, label, value }) => (
+    <div className="flex flex-col gap-0.5 sm:gap-1 p-2.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl sm:rounded-2xl min-w-[75px] sm:min-w-[100px] shadow-sm shrink-0">
+        <div className="flex items-center gap-1 opacity-50">
+            {icon}
+            <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-tight sm:tracking-widest truncate">{label}</span>
+        </div>
+        <span className="text-[10px] sm:text-base font-black text-slate-900 dark:text-white">{value}</span>
+    </div>
+);
 
 export default AppointmentsPage;
 

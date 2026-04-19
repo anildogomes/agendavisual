@@ -4,7 +4,8 @@ import { supabase } from '../supabaseClient';
 import { Service, Professional, BusinessInfo, Appointment, Client } from '../types';
 import { 
     Calendar, Clock, User, 
-    PhoneInput, ChevronLeft, timeToMinutes, MapPin, Check, X, Search, Smartphone, Trash, Info, Sun, Moon, Store, Scissors, AlertTriangle, WhatsApp
+    PhoneInput, ChevronLeft, timeToMinutes, MapPin, Check, X, Search, Smartphone, Trash, Info, Sun, Moon, Store, Scissors, AlertTriangle, WhatsApp,
+    LayoutDashboard
 } from '../constants';
 import { useTheme, useDemoData } from '../App';
 
@@ -35,6 +36,7 @@ const PublicBookingPage: React.FC = () => {
     const [business, setBusiness] = useState<BusinessInfo | null>(null);
     const [services, setServices] = useState<Service[]>([]);
     const [professionals, setProfessionals] = useState<Professional[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
     
     // View State
     const [view, setView] = useState<'booking' | 'lookup'>('booking');
@@ -66,6 +68,13 @@ const PublicBookingPage: React.FC = () => {
     const [cancelReason, setCancelReason] = useState('');
     const [cancellationSuccess, setCancellationSuccess] = useState<boolean>(false);
     const { isDemo, demoData, setDemoData } = useDemoData();
+
+    // 0. Check Session
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setCurrentUser(session?.user || null);
+        });
+    }, []);
 
     // 1. Fetch Business Data
     useEffect(() => {
@@ -561,13 +570,26 @@ const PublicBookingPage: React.FC = () => {
             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md sticky top-0 z-30 shadow-sm border-b border-slate-100 dark:border-slate-700/50 transition-colors duration-300 rounded-b-2xl">
                 <div className="max-w-xl mx-auto px-3 sm:px-4 pt-3 pb-1.5 relative">
                     
-                    {/* Absolute Theme Toggle (Top Right) */}
-                    <button 
-                        onClick={toggleTheme} 
-                        className="absolute top-4 right-3 sm:right-4 p-2 rounded-full bg-slate-50 dark:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors z-10"
-                    >
-                        {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                    </button>
+                    {/* Absolute Controls (Top Right) */}
+                    <div className="absolute top-4 right-3 sm:right-4 flex items-center gap-2 z-10">
+                        {/* Return to Admin Panel Button (Owner ONLY) */}
+                        {((currentUser && business && currentUser.id === business.id) || (isDemo && window.location.hash.includes('demonstracao'))) && (
+                            <button 
+                                onClick={() => window.location.hash = '#'}
+                                className="flex items-center gap-2 px-3 py-2 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-900/20 dark:shadow-white/10 hover:scale-105 active:scale-95 transition-all"
+                            >
+                                <LayoutDashboard className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Gerenciar</span>
+                            </button>
+                        )}
+
+                        <button 
+                            onClick={toggleTheme} 
+                            className="p-2 rounded-full bg-slate-50 dark:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                        >
+                            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        </button>
+                    </div>
 
                     <div className="flex items-start sm:items-center gap-3 sm:gap-4 animate-fade-in-down">
                         

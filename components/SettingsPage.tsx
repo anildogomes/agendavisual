@@ -97,6 +97,81 @@ const SettingsPage: React.FC = () => {
     const handleSave = async () => {
         if (!businessInfo) return;
 
+        // --- VALIDATION: PERFIL ---
+        if (!businessInfo.business_name?.trim()) {
+            addToast('O Nome do Negócio é obrigatório.', 'error');
+            setActiveTab('perfil');
+            return;
+        }
+        if (!businessInfo.full_name?.trim()) {
+            addToast('O Nome do Proprietário é obrigatório.', 'error');
+            setActiveTab('perfil');
+            return;
+        }
+        if (!businessInfo.whatsapp_phone?.trim()) {
+            addToast('O Telefone/WhatsApp é obrigatório.', 'error');
+            setActiveTab('perfil');
+            return;
+        }
+        if (!businessInfo.slug?.trim()) {
+            addToast('O Link Personalizado é obrigatório.', 'error');
+            setActiveTab('perfil');
+            return;
+        }
+
+        // --- VALIDATION: ENDEREÇO ---
+        if (!businessInfo.street?.trim()) {
+            addToast('A Rua é obrigatória.', 'error');
+            setActiveTab('endereco');
+            return;
+        }
+        if (!businessInfo.number?.trim()) {
+            addToast('O Número é obrigatório.', 'error');
+            setActiveTab('endereco');
+            return;
+        }
+        if (!businessInfo.neighborhood?.trim()) {
+            addToast('O Bairro é obrigatório.', 'error');
+            setActiveTab('endereco');
+            return;
+        }
+        if (!businessInfo.city?.trim()) {
+            addToast('A Cidade é obrigatória.', 'error');
+            setActiveTab('endereco');
+            return;
+        }
+        if (!businessInfo.state?.trim()) {
+            addToast('O Estado (UF) é obrigatório.', 'error');
+            setActiveTab('endereco');
+            return;
+        }
+
+        // --- VALIDATION: HORÁRIOS ---
+        const hasWorkHours = Object.values(businessInfo.work_hours || {}).some((intervals: any) => intervals && intervals.length > 0);
+        if (!hasWorkHours) {
+            addToast('Configure ao menos um dia de atendimento.', 'error');
+            setActiveTab('horarios');
+            return;
+        }
+
+        // Validate each day's intervals
+        for (const [day, intervals] of Object.entries(businessInfo.work_hours || {})) {
+            if (Array.isArray(intervals)) {
+                for (const interval of intervals) {
+                    if (!interval.start || !interval.end) {
+                        addToast(`Horário incompleto em ${day}.`, 'error');
+                        setActiveTab('horarios');
+                        return;
+                    }
+                    if (interval.start >= interval.end) {
+                        addToast(`Horário inválido em ${day} (Início deve ser antes do fim).`, 'error');
+                        setActiveTab('horarios');
+                        return;
+                    }
+                }
+            }
+        }
+
         setSaving(true);
         
         if (isDemo) {
@@ -104,16 +179,14 @@ const SettingsPage: React.FC = () => {
                 ...prev,
                 business: businessInfo
             }));
-            addToast('Configurações salvas!', 'success');
+            addToast('Configurações salvas (Modo Demo)!', 'success');
             setSaving(false);
             return;
         }
 
-        // Add 'name' fallback field to prevent not-null constraint violation
-        // Some older schemas or initial table creations might strictly expect the 'name' and 'email' columns
         const payloadToSave = {
             ...businessInfo,
-            name: businessInfo.business_name || 'My Business',
+            name: businessInfo.business_name, // Sync name for backward compatibility
             email: businessInfo.email || ''
         };
 
@@ -126,7 +199,17 @@ const SettingsPage: React.FC = () => {
             console.error('Erro ao salvar:', error);
             addToast('Erro ao salvar: ' + error.message, 'error');
         } else {
-            addToast('Configurações salvas!', 'success');
+            addToast('Configurações salvas com sucesso!', 'success');
+            
+            // If it's a new user flow, give them a push to Step 2
+            const onboardingKey = `onboarding_step1_done_${businessInfo.id}`;
+            const alreadyNotified = localStorage.getItem(onboardingKey);
+            
+            if (!alreadyNotified) {
+                addToast('Passo 1 concluído! Próximo: Cadastre seus Serviços.', 'info', true);
+                localStorage.setItem(onboardingKey, 'true');
+            }
+
             window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
         }
         setSaving(false);
@@ -467,7 +550,7 @@ const SettingsPage: React.FC = () => {
                                 <section className="space-y-6">
                                     <div className="space-y-1">
                                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Expediente</h3>
-                                        <p className="text-xs text-slate-500">Ative os dias da semana e defina os horários de abertura, fechamento e intervalos.</p>
+                                        <p className="text-xs text-slate-500">Ative os dias da semana clicando nas chaves seletoras e defina os horários de abertura e fechamento.</p>
                                     </div>
 
                                     <div className="border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/50 shadow-sm">
