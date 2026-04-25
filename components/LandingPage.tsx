@@ -18,8 +18,7 @@ import {
   Heart,
   Flower2,
   Palette,
-  PenTool,
-  Dog
+  Crown
 } from 'lucide-react';
 import { useTheme } from '../App';
 
@@ -67,18 +66,35 @@ const LandingPage: React.FC = () => {
 
   const niches = [
     { icon: <Scissors className="w-6 h-6" />, title: "Barbearia", img: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=2070&auto=format&fit=crop" },
-    { icon: <Sparkles className="w-6 h-6" />, title: "Salão de Beleza", img: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=2070&auto=format&fit=crop" },
+    { icon: <Sparkles className="w-6 h-6" />, title: "Salão de Beleza", img: "https://images.unsplash.com/photo-1562322140-8baeececf3df?q=80&w=2070&auto=format&fit=crop" },
     { icon: <Flower2 className="w-6 h-6" />, title: "Manicure & Pedicure", img: "https://images.unsplash.com/photo-1632345031435-8727f6897d53?q=80&w=2070&auto=format&fit=crop" },
     { icon: <Heart className="w-6 h-6" />, title: "Massagem", img: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=2070&auto=format&fit=crop" },
     { icon: <Palette className="w-6 h-6" />, title: "Maquiagem", img: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?q=80&w=2070&auto=format&fit=crop" },
     { icon: <Sun className="w-6 h-6" />, title: "Bronzeamento", img: "https://images.unsplash.com/photo-1590439471364-192aa70c0b53?q=80&w=2070&auto=format&fit=crop" },
-    { icon: <PenTool className="w-6 h-6" />, title: "Tatuagem", img: "https://images.unsplash.com/photo-1598371839696-5c5bb00bdc28?q=80&w=2071&auto=format&fit=crop" },
-    { icon: <Dog className="w-6 h-6" />, title: "Pets", img: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?q=80&w=2071&auto=format&fit=crop" }
+    { icon: <Crown className="w-6 h-6" />, title: "Estúdio de Noivas", img: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070&auto=format&fit=crop" }
   ];
 
   return (
-    <div className={`min-h-screen transition-colors duration-300`}>
-      {/* --- HEADER --- */}
+    <div className="relative min-h-screen transition-colors duration-300">
+      {/* 
+          A imagem de fundo deve ser a primeira coisa no container relativo.
+          Usamos fixed para que ela cubra todo o viewport.
+      */}
+      <div 
+        className="fixed inset-0 z-[-1] pointer-events-none"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1562322140-8baeececf3df?q=80&w=2070&auto=format&fit=crop")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.6
+        }}
+      />
+      
+      {/* Overlay para legibilidade */}
+      <div className={`fixed inset-0 z-[-1] pointer-events-none transition-colors duration-300 ${theme === 'light' ? 'bg-white/40' : 'bg-slate-950/60'}`} />
+
+      <div className="relative z-10">
+        {/* --- HEADER --- */}
       <nav className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b transition-colors duration-300 ${theme === 'light' ? 'bg-white/90 border-slate-100' : 'bg-slate-950/90 border-slate-800'}`}>
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-1.5 sm:gap-3">
@@ -86,9 +102,8 @@ const LandingPage: React.FC = () => {
               <Scissors className="w-5 h-5 sm:w-6 h-6" />
             </div>
             <div className="flex flex-col">
-              <span className={`text-lg sm:text-2xl font-bold tracking-tight leading-none transition-colors duration-300`}>
-                  <span className={theme === 'light' ? 'text-slate-900' : 'text-white'}>Agenda</span>
-                  <span className="text-gold-600 dark:text-gold-400">Visual</span>
+              <span className={`text-lg sm:text-2xl font-bold tracking-tight leading-none transition-colors duration-300 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  Agendios
               </span>
               <span className={`text-[9px] sm:text-[11px] font-bold transition-colors duration-300 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
                 Agendamento inteligente para seu negócio
@@ -330,9 +345,8 @@ const LandingPage: React.FC = () => {
             <div className="bg-orange-500 p-1.5 sm:p-2 rounded-xl text-white shadow-lg shadow-orange-500/20">
               <Scissors className="w-5 h-5 sm:w-6 h-6" />
             </div>
-            <span className={`text-xl sm:text-2xl font-bold tracking-tight transition-colors duration-300`}>
-                <span className={theme === 'light' ? 'text-slate-900' : 'text-white'}>Agenda</span>
-                <span className="text-gold-600 dark:text-gold-400">Visual</span>
+            <span className={`text-xl sm:text-2xl font-bold tracking-tight transition-colors duration-300 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                Agendios
             </span>
           </div>
 
@@ -347,6 +361,7 @@ const LandingPage: React.FC = () => {
           </p>
         </div>
       </footer>
+      </div>
     </div>
   );
 };

@@ -24,7 +24,8 @@ import {
   Edit,
   Trash2,
   BarChart2,
-  Activity
+  Activity,
+  FileText
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -417,22 +418,64 @@ const AppointmentsPage: React.FC = () => {
     };
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-12 space-y-6 sm:space-y-16 mb-32 animate-fade-in font-sans selection:bg-slate-900 selection:text-white dark:selection:bg-white dark:selection:text-slate-900">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 lg:px-12 py-4 sm:py-12 space-y-4 sm:space-y-16 mb-32 animate-fade-in font-sans selection:bg-slate-900 selection:text-white dark:selection:bg-white dark:selection:text-slate-900">
             {/* Header: Global Actions & Navigation */}
-            <header className="space-y-6 sm:space-y-8">
+            <header className="space-y-4 sm:space-y-8">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 sm:gap-6">
-                    <button 
-                        onClick={() => openModal()}
-                        className="flex items-center justify-center gap-2 sm:gap-3 px-6 py-4 sm:px-8 sm:py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[20px] sm:rounded-[28px] font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-slate-900/10 dark:shadow-none w-full sm:w-auto order-first"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Novo Agendamento
-                    </button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button 
+                            onClick={() => openModal()}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 sm:gap-3 px-4 py-3.5 sm:px-8 sm:py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl sm:rounded-[28px] font-black text-[10px] sm:text-[11px] uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-slate-900/10 dark:shadow-none min-w-0"
+                        >
+                            <Plus className="w-4 h-4 shrink-0" />
+                            <span className="truncate">Novo Agendamento</span>
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const csvData = filteredAppointments.map(app => {
+                                    const c = clients.find(cl => cl.id === app.client_id);
+                                    const s = services.find(sv => sv.id === app.service_id);
+                                    const p = professionals.find(pr => pr.id === app.professional_id);
+                                    return {
+                                        Data: app.date,
+                                        Hora: app.time,
+                                        Cliente: c?.name || 'Vazio',
+                                        WhatsApp: c?.phone || 'Vazio',
+                                        Serviço: s?.name || 'Vazio',
+                                        Valor: s?.price || 0,
+                                        Profissional: p?.name || 'Vazio',
+                                        Status: app.status
+                                    };
+                                });
+                                
+                                const csvRows = [
+                                    ['Data', 'Hora', 'Cliente', 'WhatsApp', 'Servico', 'Valor', 'Profissional', 'Status'],
+                                    ...csvData.map(d => [d.Data, d.Hora, d.Cliente, d.WhatsApp, d.Serviço, d.Valor, d.Profissional, d.Status])
+                                ];
+                                
+                                const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(e => e.join(",")).join("\n");
+                                const encodedUri = encodeURI(csvContent);
+                                const link = document.createElement("a");
+                                link.setAttribute("href", encodedUri);
+                                link.setAttribute("download", `agendamentos_${new Date().toISOString().split('T')[0]}.csv`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                addToast('Exportação concluída!', 'success');
+                            }}
+                            className="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm active:scale-95 flex items-center gap-2 group shrink-0"
+                            title="Exportar para Excel/CSV"
+                        >
+                            <FileText className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:inline">Exportar</span>
+                        </button>
+                    </div>
 
                     {/* Mini Dashboards for Appointments */}
-                    <div className="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar w-full sm:w-auto py-1 items-center">
+                    <div className="flex gap-2 sm:gap-4 overflow-x-auto no-scrollbar w-full sm:w-auto py-1 items-center relative after:absolute after:right-0 after:top-0 after:bottom-0 after:w-4 after:bg-gradient-to-l after:from-slate-50 dark:after:from-slate-900 after:pointer-events-none sm:after:hidden">
                         <AgendaMiniStat 
-                            label="Agendamentos" 
+                            label="Agends" 
+                            labelFull="Agendamentos" 
                             value={agendaStats.total.toString()} 
                             icon={<CalendarDays className="w-3 h-3" />}
                         />
@@ -448,7 +491,7 @@ const AppointmentsPage: React.FC = () => {
                         />
                         <button 
                             onClick={() => setIsChartModalOpen(true)}
-                            className="p-3.5 sm:p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm active:scale-95 flex items-center gap-2 group shrink-0"
+                            className="p-3.5 sm:p-4 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm border border-slate-100 dark:border-slate-700 active:scale-95 flex items-center gap-2 group shrink-0"
                             title="Ver Gráficos"
                         >
                             <BarChart2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -673,8 +716,8 @@ const AppointmentsPage: React.FC = () => {
                                         <div className="space-y-3 sm:space-y-4">
                                             <div className="flex justify-between items-center px-1">
                                                 <label className="text-[9px] sm:text-[10px] font-black text-slate-300 uppercase tracking-widest">Cliente</label>
-                                                <button onClick={() => setIsNewClientMode(!isNewClientMode)} className="text-[9px] sm:text-[10px] font-black underline underline-offset-4 decoration-primary-500/20">
-                                                    {isNewClientMode ? 'Lista' : 'Novo'}
+                                                <button onClick={() => setIsNewClientMode(!isNewClientMode)} className="text-[9px] sm:text-[10px] font-black underline underline-offset-4 decoration-primary-500/20 text-indigo-600 dark:text-indigo-400">
+                                                    {isNewClientMode ? 'Lista de Clientes' : 'Novo Cliente'}
                                                 </button>
                                             </div>
                                             
@@ -929,8 +972,11 @@ const AppointmentRow: React.FC<{
             className="flex gap-3 sm:gap-4 lg:gap-5 items-start"
         >
             {/* External Time & Indicator */}
-            <div className="flex flex-col items-center pt-2 min-w-[50px] sm:min-w-[60px] lg:min-w-[70px]">
+            <div className="flex flex-col items-center pt-2 min-w-[50px] sm:min-w-[60px] lg:min-w-[80px] shrink-0">
                 <span className="text-sm sm:text-lg lg:text-xl font-black text-slate-900 dark:text-white tracking-tighter leading-tight">{app.time}</span>
+                <span className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">
+                    {new Date(app.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                </span>
                 <div className={`w-1.5 h-1.5 rounded-full mt-2 ${
                     app.status === 'reserved' ? 'bg-indigo-500' : 
                     app.status === 'completed' ? 'bg-emerald-500' : 
@@ -1053,13 +1099,16 @@ const StatusBadge: React.FC<{ status: Appointment['status'] }> = ({ status }) =>
     );
 };
 
-const AgendaMiniStat: React.FC<{ icon: React.ReactNode, label: string, value: string }> = ({ icon, label, value }) => (
-    <div className="flex flex-col gap-0.5 sm:gap-1 p-2.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl sm:rounded-2xl min-w-[75px] sm:min-w-[100px] shadow-sm shrink-0">
-        <div className="flex items-center gap-1 opacity-50">
+const AgendaMiniStat: React.FC<{ icon: React.ReactNode, label: string, labelFull?: string, value: string }> = ({ icon, label, labelFull, value }) => (
+    <div className="flex flex-col gap-0.5 sm:gap-1.5 p-2.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl sm:rounded-2xl min-w-[85px] sm:min-w-[120px] shadow-sm shrink-0">
+        <div className="flex items-center gap-1 opacity-60">
             {icon}
-            <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-tight sm:tracking-widest truncate">{label}</span>
+            <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-tight sm:tracking-widest truncate max-w-[50px] sm:max-w-none">
+                <span className="sm:hidden">{label}</span>
+                <span className="hidden sm:inline">{labelFull || label}</span>
+            </span>
         </div>
-        <span className="text-[10px] sm:text-base font-black text-slate-900 dark:text-white">{value}</span>
+        <span className="text-[10px] sm:text-lg font-black text-slate-900 dark:text-white tracking-tighter truncate">{value}</span>
     </div>
 );
 

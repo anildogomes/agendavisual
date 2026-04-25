@@ -238,7 +238,7 @@ const ProfessionalsPage: React.FC = () => {
                 // Create a basic business record if it doesn't exist to prevent orphaned relation errors
                 const { error: bizError } = await supabase.from('businesses').insert([{
                     id: cleanUserId,
-                    business_name: 'Minha Barbearia',
+                    name: 'Minha Barbearia',
                     full_name: user.user_metadata?.full_name || 'Membro da Equipe', 
                     slug: `barbearia-${Math.random().toString(36).slice(2, 7)}`,
                     whatsapp_phone: '',
@@ -294,17 +294,6 @@ const ProfessionalsPage: React.FC = () => {
                     addToast('Profissional cadastrado com sucesso!', 'success');
                     setIsModalOpen(false);
                     fetchProfessionals();
-
-                    // Check for completion
-                    const { count: profCount } = await supabase
-                        .from('professionals')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('business_id', cleanUserId);
-
-                    if (profCount === 1) {
-                         addToast('Parabéns! Cadastro completo. Sua agenda agora está disponível para os clientes.', 'success', true);
-                    }
-                    
                     window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
                 }
             }
@@ -456,7 +445,7 @@ const ProfessionalsPage: React.FC = () => {
                     className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-bold text-sm hover:opacity-90 transition-all active:scale-95 shadow-xl w-full sm:w-auto"
                 >
                     <Plus className="w-5 h-5" />
-                    Adicionar Profissional
+                    Novo Profissional
                 </button>
             </div>
 

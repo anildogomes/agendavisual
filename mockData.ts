@@ -14,7 +14,7 @@ export const mockSession: Session = {
     id: MOCK_USER_ID,
     aud: 'authenticated',
     role: 'authenticated',
-    email: 'demo@agendavisual.com.br',
+    email: 'demo@agendios.com.br',
     email_confirmed_at: new Date().toISOString(),
     phone: '',
     confirmation_sent_at: '',
@@ -39,7 +39,7 @@ export const mockAdminSession: Session = {
 
 export const mockBusiness = {
   id: MOCK_USER_ID,
-  business_name: 'Barbearia do Demo',
+  name: 'Barbearia do Demo',
   full_name: 'Usuário Demo',
   whatsapp_phone: '11999999999',
   address: 'Rua das Flores, 123 - São Paulo',

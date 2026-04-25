@@ -224,7 +224,7 @@ const ClientsPage: React.FC = () => {
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-slate-200 dark:shadow-none"
                 >
                     <UserPlus className="w-5 h-5" />
-                    Adicionar Cliente
+                    Novo Cliente
                 </button>
             </div>
 
@@ -507,6 +507,21 @@ const ClientCard: React.FC<{
 
     const initials = client.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
+    const formatDisplayPhone = (raw: string) => {
+        let phone = raw.replace(/\D/g, '');
+        // Remove country code if it starts with 55 and has 12 or 13 digits
+        if (phone.startsWith('55') && (phone.length === 12 || phone.length === 13)) {
+            phone = phone.substring(2);
+        }
+        
+        if (phone.length === 11) {
+            return `(${phone.substring(0, 2)}) ${phone.substring(2, 7)}-${phone.substring(7)}`;
+        } else if (phone.length === 10) {
+            return `(${phone.substring(0, 2)}) ${phone.substring(2, 6)}-${phone.substring(6)}`;
+        }
+        return raw;
+    };
+
     return (
         <motion.div 
             layout
@@ -525,26 +540,27 @@ const ClientCard: React.FC<{
                     </div>
                     <div className="flex flex-col min-w-0">
                         <h4 className="text-base sm:text-xl font-bold text-slate-900 dark:text-slate-100 truncate pr-2">{client.name}</h4>
-                        <div className="flex items-center gap-2">
-                            <p className="text-slate-500 dark:text-slate-400 font-medium text-xs sm:text-base">
-                                ({client.phone.substring(0, 2)}) {client.phone.substring(2)}
-                            </p>
-                            <a 
-                                href={`https://wa.me/${client.phone.replace(/\D/g, '')}`} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1 text-emerald-500 hover:scale-110 transition-transform"
-                                title="WhatsApp"
-                            >
-                                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 fill-emerald-500/10" />
-                            </a>
-                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium text-xs sm:text-base">
+                            {formatDisplayPhone(client.phone)}
+                        </p>
                     </div>
                 </div>
 
-                <div className={`p-2 rounded-full transition-all ${isExpanded ? 'rotate-180 text-gold-500 bg-gold-50 dark:bg-gold-500/10' : 'text-slate-300'}`}>
-                    <ChevronDown className="w-6 h-6" />
+                <div className="flex items-center gap-3">
+                    <a 
+                        href={`https://wa.me/${client.phone.replace(/\D/g, '')}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full hover:scale-110 transition-all border border-emerald-100 dark:border-emerald-500/20"
+                        title="WhatsApp"
+                    >
+                        <MessageCircle className="w-5 h-5 fill-emerald-500/10" />
+                    </a>
+                    
+                    <div className={`p-2 rounded-full transition-all ${isExpanded ? 'rotate-180 text-gold-500 bg-gold-50 dark:bg-gold-500/10' : 'text-slate-300'}`}>
+                        <ChevronDown className="w-6 h-6" />
+                    </div>
                 </div>
             </div>
 

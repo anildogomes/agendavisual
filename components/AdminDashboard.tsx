@@ -554,7 +554,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; isDemo?: boolean }> = ({ 
         const mappedClients: SubscribedClient[] = (businesses || []).map((b: any) => {
             return {
                 id: b.id,
-                businessName: b.business_name || 'Sem Nome',
+                businessName: b.name || 'Sem Nome',
                 ownerName: b.full_name || 'Desconhecido',
                 email: b.contact_email || b.email || 'N/A', 
                 phone: b.phone || '',
@@ -588,7 +588,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; isDemo?: boolean }> = ({ 
         const { error } = await supabase
             .from('businesses')
             .update({
-                business_name: updatedClient.businessName,
+                name: updatedClient.businessName,
                 full_name: updatedClient.ownerName,
                 phone: updatedClient.phone,
                 city: updatedClient.city,
@@ -682,7 +682,7 @@ const AdminDashboard: React.FC<{ onLogout: () => void; isDemo?: boolean }> = ({ 
                             <Scissors className="w-5 h-5"/>
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Agenda<span className="text-primary-600 dark:text-primary-400">Visual</span></h1>
+                            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Agendios</h1>
                         </div>
                     </div>
                 </div>

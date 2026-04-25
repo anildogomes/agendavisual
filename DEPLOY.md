@@ -15,10 +15,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE businesses (
   id UUID PRIMARY KEY, -- Usamos o ID do usuário do Auth
   slug TEXT UNIQUE NOT NULL,
-  business_name TEXT NOT NULL,
+  name TEXT NOT NULL,
   full_name TEXT NOT NULL,
   description TEXT,
   whatsapp_phone TEXT,
+  email TEXT,
   banner_url TEXT,
   logo_url TEXT,
   instagram_url TEXT,
@@ -114,11 +115,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE appointments;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.businesses (id, user_id, business_name, full_name, slug, work_hours)
+  INSERT INTO public.businesses (id, user_id, name, full_name, slug, work_hours)
   VALUES (
     new.id,
     new.id,
-    COALESCE(new.raw_user_meta_data->>'business_name', 'Meu Negócio'),
+    COALESCE(new.raw_user_meta_data->>'name', 'Meu Negócio'),
     COALESCE(new.raw_user_meta_data->>'full_name', new.email),
     COALESCE(new.raw_user_meta_data->>'slug', 'negocio-' || lower(substring(replace(new.id::text, '-', ''), 1, 8))),
     '{"sunday": null, "monday": [{"end": "18:00", "start": "09:00"}], "tuesday": [{"end": "19:00", "start": "09:00"}, {"end": "19:00", "start": "13:00"}], "wednesday": [{"end": "19:00", "start": "09:00"}, {"end": "19:00", "start": "13:00"}], "thursday": [{"end": "20:00", "start": "09:00"}, {"end": "20:00", "start": "13:00"}], "friday": [{"end": "20:00", "start": "09:00"}, {"end": "20:00", "start": "13:00"}], "saturday": [{"end": "16:00", "start": "08:00"}]}'::jsonb

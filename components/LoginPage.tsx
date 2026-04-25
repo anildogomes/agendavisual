@@ -273,7 +273,7 @@ const LoginPage: React.FC = () => {
       options: {
         emailRedirectTo: getRedirectUrl(),
         data: {
-            business_name: businessName,
+            name: businessName,
             full_name: fullName,
             city: city,
             state: state,
@@ -347,8 +347,7 @@ const LoginPage: React.FC = () => {
             <Scissors className="w-6 h-6" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-serif font-bold transition-colors duration-300">
-            <span className="text-slate-950 dark:text-slate-100">Agenda</span>
-            <span className="text-gold-600 dark:text-gold-400">Visual</span>
+            <span className="text-slate-950 dark:text-slate-100">Agendios</span>
           </h2>
           <p className="mt-1 text-sm font-bold transition-colors duration-300 text-slate-800 dark:text-slate-400">
             Atendimento inteligente para barbearias e studios de beleza

@@ -2,9 +2,10 @@ export interface BusinessInfo {
   id: string;
   slug: string;
   email?: string;
-  business_name: string;
+  name: string;
   full_name: string;
-  created_at: string;
+  created_at?: string;
+  updated_at?: string;
   subscription_status: string;
   is_exempt: boolean;
   address?: string;
@@ -42,6 +43,7 @@ export interface Service {
   description?: string;
   business_id: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Professional {
@@ -53,6 +55,7 @@ export interface Professional {
   business_id: string;
   whatsapp_phone?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Appointment {
@@ -65,6 +68,8 @@ export interface Appointment {
   time: string;
   status: 'reserved' | 'completed' | 'no_show' | 'cancelled';
   cancellation_reason?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Client {
@@ -75,6 +80,7 @@ export interface Client {
   status: 'active' | 'inactive';
   notes?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface ScheduleBlock {
@@ -85,4 +91,5 @@ export interface ScheduleBlock {
   start_time: string;
   end_time: string;
   reason?: string;
+  updated_at?: string;
 }

@@ -91,6 +91,7 @@ const PublicBookingPage: React.FC = () => {
             // Handle Demo Mode
             if (slug === 'demonstracao' || isDemo) {
                 setBusiness(demoData.business);
+                document.title = demoData.business.name;
                 setServices(demoData.services);
                 setProfessionals(demoData.professionals);
                 setLoading(false);
@@ -110,6 +111,7 @@ const PublicBookingPage: React.FC = () => {
             }
 
             setBusiness(bizData as BusinessInfo);
+            document.title = bizData.name;
 
             const [sRes, pRes] = await Promise.all([
                 supabase.from('services').select('*').eq('business_id', bizData.id).order('name'),
@@ -529,69 +531,57 @@ const PublicBookingPage: React.FC = () => {
     if (error) return <div className="flex h-screen items-center justify-center text-red-500 dark:bg-slate-900">{error}</div>;
     if (!business) return null;
 
-    // Full Address String Construction (Single Line)
-    const fullAddress = [
+    // Address Construction (Two Lines for Readability)
+    const addressLine1 = [
         business.street,
         business.number,
+        business.complement
+    ].filter(Boolean).join(', ');
+
+    const addressLine2 = [
         business.neighborhood,
         business.city,
         business.state
     ].filter(Boolean).join(', ');
 
     return (
-        <div className="min-h-screen text-slate-900 dark:text-slate-100 font-sans pb-24 md:pb-0 transition-colors duration-300 relative overflow-hidden flex flex-col">
-            {/* Demo Mode Banner */}
-            {(isDemo || window.location.hash.includes('demonstracao')) && (
-                <div className="bg-slate-900 text-white px-4 py-2 flex justify-between items-center z-50 shadow-md shrink-0">
+        <div className="min-h-screen text-slate-900 dark:text-slate-100 font-sans transition-colors duration-300 relative flex flex-col">
+            {/* Manager / Demo Notification Bar */}
+            {((currentUser && business && currentUser.id === business.id) || (isDemo || window.location.hash.includes('demonstracao'))) && (
+                <div className="bg-slate-900 dark:bg-slate-950 text-white px-4 py-2.5 flex justify-between items-center z-50 shadow-md shrink-0 border-b border-white/10">
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-70">Modo Demo</span>
+                        <div className="p-1 bg-white/10 rounded-lg">
+                            <LayoutDashboard className="w-3.5 h-3.5 text-gold-400" />
+                        </div>
+                        <span className="text-[10px] sm:text-xs font-bold leading-tight">
+                            Visualizando seu site
+                        </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => {
-                                window.location.hash = '#signup';
-                            }}
-                            className="bg-white text-slate-900 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold hover:bg-slate-100 transition-colors"
-                        >
-                            Começar Grátis
-                        </button>
-                        <button 
-                            onClick={() => window.location.hash = '#'}
-                            className="text-white/60 hover:text-white text-[10px] sm:text-xs font-medium"
-                        >
-                            Sair
-                        </button>
-                    </div>
+                    <button 
+                        onClick={() => window.location.hash = 'inicio'}
+                        className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-white hover:text-gold-400 transition-colors border-b-2 border-gold-500 pb-0.5"
+                    >
+                        Voltar ao painel
+                    </button>
                 </div>
             )}
 
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 relative flex flex-col">
             {/* --- COMPACT HEADER --- */}
             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md sticky top-0 z-30 shadow-sm border-b border-slate-100 dark:border-slate-700/50 transition-colors duration-300 rounded-b-2xl">
                 <div className="max-w-xl mx-auto px-3 sm:px-4 pt-3 pb-1.5 relative">
                     
-                    {/* Absolute Controls (Top Right) */}
-                    <div className="absolute top-4 right-3 sm:right-4 flex items-center gap-2 z-10">
-                        {/* Return to Admin Panel Button (Owner ONLY) */}
-                        {((currentUser && business && currentUser.id === business.id) || (isDemo && window.location.hash.includes('demonstracao'))) && (
-                            <button 
-                                onClick={() => window.location.hash = '#'}
-                                className="flex items-center gap-2 px-3 py-2 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-900/20 dark:shadow-white/10 hover:scale-105 active:scale-95 transition-all"
-                            >
-                                <LayoutDashboard className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Gerenciar</span>
-                            </button>
-                        )}
-
+                    {/* Theme Toggle - Positioned Opposite to Business Name/Logo */}
+                    <div className="absolute top-4 right-3 sm:right-4 z-10">
                         <button 
                             onClick={toggleTheme} 
-                            className="p-2 rounded-full bg-slate-50 dark:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                            className="p-2 rounded-full bg-slate-50 dark:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors shadow-sm"
                         >
                             {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                         </button>
                     </div>
 
-                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 animate-fade-in-down">
+                    <div className="flex items-start gap-3 sm:gap-4 animate-fade-in-down">
                         
                         {/* Compact Logo */}
                         <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 bg-gradient-to-tr from-gold-300 to-gold-500 shadow-md shrink-0">
@@ -606,17 +596,22 @@ const PublicBookingPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Info Block - Left Aligned & Compact */}
-                        <div className="flex-1 min-w-0 pr-10 sm:pr-8"> {/* Right padding prevents text hitting the theme toggle */}
-                            <h1 className="text-lg sm:text-xl font-serif font-bold tracking-tight leading-tight transition-colors duration-300">
-                                <span className="text-slate-900 dark:text-white">Agenda</span>
-                                <span className="text-gold-600 dark:text-gold-400">Visual</span>
+                        {/* Info Block - Left Aligned */}
+                        <div className="flex-1 min-w-0 pr-12 sm:pr-14"> 
+                            <h1 className="text-lg sm:text-xl font-serif font-bold tracking-tight leading-tight transition-colors duration-300 text-slate-900 dark:text-white">
+                                {business.name}
                             </h1>
                             
-                            <p className={`text-[10px] sm:text-xs w-full flex items-center gap-1 mt-0.5 transition-colors duration-300 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span className="truncate">{fullAddress}</span>
-                            </p>
+                            {/* Split Address Lines */}
+                            <div className={`mt-1 transition-colors duration-300 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <div className="flex items-center gap-1 text-[10px] sm:text-xs">
+                                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span className="truncate font-medium">{addressLine1}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-[9px] sm:text-[10px] pl-4 opacity-70">
+                                    <span className="truncate">{addressLine2}</span>
+                                </div>
+                            </div>
 
                             {/* Combined Status Line */}
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
@@ -668,8 +663,11 @@ const PublicBookingPage: React.FC = () => {
                             <div className="space-y-6 animate-fade-in-down">
                                 {/* Header Sentiment */}
                                 <div className="text-center pt-2">
-                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Agendamento Realizado!</h2>
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Seu horário já consta em nosso sistema.</p>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-[10px] font-black uppercase tracking-widest mb-3 animate-pulse">
+                                        Ação Necessária
+                                    </div>
+                                    <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-tight">Agendamento Pré-Reservado!</h2>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 max-w-[280px] mx-auto">Seu horário está garantido, mas você <b>precisa</b> confirmar no WhatsApp abaixo.</p>
                                 </div>
 
                                 {/* Summary Ticket Card */}
@@ -725,34 +723,50 @@ const PublicBookingPage: React.FC = () => {
                                         </div>
                                     </div>
                                     
-                                    {/* Decorative circles mimicking ticket cutouts */}
-                                    <div className="absolute top-[88px] -left-3 w-6 h-6 bg-slate-50 dark:bg-slate-900 rounded-full"></div>
-                                    <div className="absolute top-[88px] -right-3 w-6 h-6 bg-slate-50 dark:bg-slate-900 rounded-full"></div>
+                                {/* Success Screen Ticket Decorations */}
+                                <div className="absolute top-[108px] -left-3 w-6 h-6 bg-slate-50 dark:bg-slate-900 rounded-full z-10 border-r border-slate-200 dark:border-slate-800"></div>
+                                <div className="absolute top-[108px] -right-3 w-6 h-6 bg-slate-50 dark:bg-slate-900 rounded-full z-10 border-l border-slate-200 dark:border-slate-800"></div>
+                                <div className="absolute top-[119px] left-4 right-4 h-px border-t border-dashed border-slate-200 dark:border-slate-700 z-0"></div>
                                 </div>
 
                                 {/* Warning / Notice */}
-                                <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-800/30 flex gap-3 items-start">
-                                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
-                                    <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium">
-                                        Importante: Chegue com <strong>10 minutos de antecedência</strong> para garantir seu atendimento no horário.
-                                    </p>
+                                <div className="bg-red-50 dark:bg-red-900/10 p-5 rounded-2xl border border-red-100 dark:border-red-800/30 flex gap-4 items-start shadow-sm shadow-red-100/50">
+                                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center shrink-0">
+                                       <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-500" />
+                                    </div>
+                                    <div className="space-y-1 flex-1">
+                                       <h4 className="text-xs font-black text-red-900 dark:text-red-100 uppercase tracking-widest">Atenção Especial</h4>
+                                       <p className="text-xs text-red-800/80 dark:text-red-200/80 leading-relaxed font-medium">
+                                           Seu agendamento pode ser <b>cancelado</b> se o profissional não receber sua confirmação nos próximos minutos.
+                                       </p>
+                                    </div>
                                 </div>
 
                                 {/* Primary Action */}
                                 <div className="pt-2 space-y-4">
                                     {generateWhatsAppNotifyLink() && (
-                                        <a 
-                                            href={generateWhatsAppNotifyLink()!}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="block w-full py-4 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all transform active:scale-[0.98] flex items-center justify-center gap-3"
-                                        >
-                                            <Smartphone className="w-6 h-6" />
-                                            Avisar Profissional
-                                        </a>
+                                        <div className="space-y-3">
+                                           <a 
+                                               href={generateWhatsAppNotifyLink()!}
+                                               target="_blank"
+                                               rel="noopener noreferrer"
+                                               className="block w-full py-5 bg-[#25D366] hover:bg-[#128C7E] text-white font-black rounded-2xl shadow-[0_10px_20px_-5px_rgba(37,211,102,0.4)] hover:shadow-xl transition-all transform active:scale-[0.98] flex flex-col items-center justify-center gap-1 group relative overflow-hidden text-center"
+                                           >
+                                               <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                                               <div className="flex items-center gap-2 relative z-10 justify-center">
+                                                   <Smartphone className="w-6 h-6 animate-bounce" />
+                                                   <span className="text-base">FINALIZAR AGENDAMENTO</span>
+                                               </div>
+                                               <span className="text-[10px] opacity-80 font-bold uppercase tracking-widest relative z-10">Enviar confirmação via WhatsApp</span>
+                                           </a>
+                                           <div className="flex items-center gap-2 justify-center text-amber-600 dark:text-amber-500">
+                                               <div className="w-2 h-2 rounded-full bg-current animate-ping"></div>
+                                               <span className="text-[10px] font-black uppercase tracking-widest">Aguardando sua confirmação</span>
+                                           </div>
+                                        </div>
                                     )}
-                                    <p className="text-center text-[10px] text-slate-400 px-4">
-                                        Ao clicar, você enviará o comprovante ao WhatsApp do profissional.
+                                    <p className="text-center text-[10px] text-slate-400 px-4 leading-relaxed">
+                                        Ao clicar, você enviará os detalhes do serviço ao profissional para que ele confirme seu atendimento.
                                     </p>
                                 </div>
                                 
@@ -763,17 +777,40 @@ const PublicBookingPage: React.FC = () => {
                         ) : (
                             // STEPS
                             <>
-                                {/* Step Indicator */}
-                                <div className="flex items-center justify-between mb-4 px-2">
-                                    <div className="flex items-center gap-2">
-                                        {step > 1 && (
-                                            <button onClick={() => setStep(step - 1)} className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500"><ChevronLeft className="w-4 h-4"/></button>
-                                        )}
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Passo {step} de 4</span>
+                                {/* Step Indicator - Premium & Responsive */}
+                                <div className="flex items-center justify-between mb-4 px-2 select-none">
+                                    <button 
+                                        onClick={() => step > 1 && setStep(step - 1)} 
+                                        disabled={step === 1}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all text-xs font-black uppercase tracking-widest ${
+                                            step > 1 
+                                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 active:scale-90' 
+                                                : 'opacity-0 pointer-events-none'
+                                        }`}
+                                    >
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                        Voltar
+                                    </button>
+
+                                    <div className="flex flex-col items-center gap-1.5">
+                                        <div className="flex gap-1.5">
+                                            {[1, 2, 3, 4].map(i => (
+                                                <div 
+                                                    key={i} 
+                                                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                                                        i < step 
+                                                            ? 'w-4 bg-emerald-500' 
+                                                            : i === step 
+                                                                ? 'w-8 bg-slate-900 dark:bg-white' 
+                                                                : 'w-4 bg-slate-200 dark:bg-slate-800'
+                                                    }`}
+                                                />
+                                            ))}
+                                        </div>
+                                        <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">{step === 4 ? 'Resumo' : `Passo ${step}`}</span>
                                     </div>
-                                    <div className="flex gap-1">
-                                        {[1,2,3,4].map(i => <div key={i} className={`h-1 w-6 rounded-full transition-colors ${i <= step ? 'bg-primary-600' : 'bg-slate-200 dark:bg-slate-700'}`}></div>)}
-                                    </div>
+
+                                    <div className="w-20 sm:w-24 pointer-events-none" /> {/* Spacer for balance */}
                                 </div>
 
                                 {/* Step 1: Services */}
@@ -1104,11 +1141,13 @@ const PublicBookingPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Footer Brand */}
-            <div className="fixed bottom-0 w-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-700 p-3 text-center z-20 pb-safe">
-                <p className="text-[10px] text-slate-400 flex items-center justify-center gap-1">
-                    <Scissors className="w-3 h-3" />
-                    <strong>AgendaVisual</strong> by <strong>AG Sistemas</strong>
+            {/* Footer Branded - Single discrete line */}
+            <div className="mt-auto py-8 px-4 text-center">
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity">
+                    <Calendar className="w-3 h-3 text-gold-500" />
+                    <span>Agendios</span>
+                    <span className="opacity-30 mx-1">|</span>
+                    <span className="font-medium text-slate-500 dark:text-slate-400">by AG Sistemas</span>
                 </p>
             </div>
 

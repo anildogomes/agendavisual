@@ -76,7 +76,7 @@ const SettingsPage: React.FC = () => {
                     setBusinessInfo({
                         id: user.id,
                         email: user.email,
-                        business_name: '',
+                        name: '',
                         full_name: user.user_metadata?.full_name || '',
                         slug: '',
                         created_at: new Date().toISOString(),
@@ -98,7 +98,7 @@ const SettingsPage: React.FC = () => {
         if (!businessInfo) return;
 
         // --- VALIDATION: PERFIL ---
-        if (!businessInfo.business_name?.trim()) {
+        if (!businessInfo.name?.trim()) {
             addToast('O Nome do Negócio é obrigatório.', 'error');
             setActiveTab('perfil');
             return;
@@ -186,30 +186,18 @@ const SettingsPage: React.FC = () => {
 
         const payloadToSave = {
             ...businessInfo,
-            name: businessInfo.business_name, // Sync name for backward compatibility
-            email: businessInfo.email || ''
+            updated_at: new Date().toISOString()
         };
 
         const { error } = await supabase
             .from('businesses')
-            .upsert(payloadToSave)
-            .eq('id', businessInfo.id);
+            .upsert(payloadToSave);
 
         if (error) {
             console.error('Erro ao salvar:', error);
             addToast('Erro ao salvar: ' + error.message, 'error');
         } else {
             addToast('Configurações salvas com sucesso!', 'success');
-            
-            // If it's a new user flow, give them a push to Step 2
-            const onboardingKey = `onboarding_step1_done_${businessInfo.id}`;
-            const alreadyNotified = localStorage.getItem(onboardingKey);
-            
-            if (!alreadyNotified) {
-                addToast('Passo 1 concluído! Próximo: Cadastre seus Serviços.', 'info', true);
-                localStorage.setItem(onboardingKey, 'true');
-            }
-
             window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
         }
         setSaving(false);
@@ -291,7 +279,7 @@ const SettingsPage: React.FC = () => {
         { id: 'sunday', label: 'Domingo' },
     ];
 
-    const publicUrl = `https://agendavisual.com.br/#/${businessInfo?.slug}`;
+    const publicUrl = `https://agendios.com.br/#/${businessInfo?.slug}`;
 
     const activeTabLabel = tabs.find(t => t.id === activeTab)?.label;
     const ActiveTabIcon = tabs.find(t => t.id === activeTab)?.icon;
@@ -375,8 +363,8 @@ const SettingsPage: React.FC = () => {
                                                     />
                                                 ) : (
                                                     <span className="text-3xl font-black text-slate-300 dark:text-slate-700">
-                                                        {businessInfo?.business_name 
-                                                            ? businessInfo.business_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                                                        {businessInfo?.name 
+                                                            ? businessInfo.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
                                                             : 'BN'}
                                                     </span>
                                                 )}
@@ -405,8 +393,8 @@ const SettingsPage: React.FC = () => {
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome do Negócio</label>
                                             <input 
                                                 type="text" 
-                                                value={businessInfo?.business_name || ''}
-                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), business_name: e.target.value }))}
+                                                value={businessInfo?.name || ''}
+                                                onChange={(e) => setBusinessInfo(prev => ({ ...(prev || {} as BusinessInfo), name: e.target.value }))}
                                                 className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 outline-none transition-all dark:text-slate-200 font-medium"
                                                 placeholder="Sua Barbearia"
                                             />
@@ -432,7 +420,7 @@ const SettingsPage: React.FC = () => {
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Link Personalizado</label>
                                             <div className="flex">
                                                 <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 text-[11px] font-mono">
-                                                    agendavisual.com.br/#/
+                                                    agendios.com.br/#/
                                                 </span>
                                                 <input 
                                                     type="text" 

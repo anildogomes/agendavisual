@@ -24,9 +24,8 @@ const DemoSelector: React.FC = () => {
             <div className="bg-orange-500 p-1.5 rounded-lg text-white">
               <Scissors className="w-4 h-4" />
             </div>
-            <span className={`text-lg font-bold tracking-tight transition-colors duration-300`}>
-                <span className={theme === 'light' ? 'text-slate-900' : 'text-white'}>Agenda</span>
-                <span className="text-gold-600 dark:text-gold-400">Visual</span>
+            <span className={`text-lg font-bold tracking-tight transition-colors duration-300 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                Agendios
             </span>
           </div>
           <div className="w-16"></div> {/* Spacer for centering */}
@@ -48,7 +47,7 @@ const DemoSelector: React.FC = () => {
             transition={{ delay: 0.1 }}
             className={`text-base font-medium transition-colors duration-300 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}
           >
-            Experimente o AgendaVisual de dois pontos de vista diferentes.
+            Experimente o Agendios de dois pontos de vista diferentes.
           </motion.p>
         </div>
 

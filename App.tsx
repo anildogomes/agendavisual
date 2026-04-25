@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard';
 import FeedbackPage from './components/FeedbackPage';
 import { Check, X, Bell, Calendar } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import OnboardingFlow from './pages/onboarding/OnboardingFlow';
 import { Session } from '@supabase/supabase-js';
 import { mockSession, mockAdminSession, mockBusiness, mockClients, mockServices, mockProfessionals, mockAppointments } from './mockData';
 import { Appointment, Service, Professional, Client, BusinessInfo, ScheduleBlock } from './types';
@@ -349,6 +350,8 @@ const App: React.FC = () => {
               addToast('Modo Demonstração Ativado!', 'success');
           }
       }
+
+      if (route === '#onboarding') return <OnboardingFlow />;
 
       if (session || isDemo) {
           if (isAdmin) return <AdminDashboard onLogout={handleLogout} isDemo={isDemo} />;

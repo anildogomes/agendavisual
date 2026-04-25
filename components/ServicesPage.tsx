@@ -138,17 +138,6 @@ const ServicesPage: React.FC = () => {
                 addToast('Serviço cadastrado com sucesso!', 'success');
                 setIsModalOpen(false);
                 fetchServices();
-                
-                // Onboarding Push: If it's the first service, show indicator for Step 3
-                const { count: svcCount } = await supabase
-                    .from('services')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('business_id', user.id);
-                
-                if (svcCount === 1) {
-                    addToast('Excelente! Você pode adicionar mais serviços ou ir para o Passo 3: Profissionais.', 'info', true);
-                }
-
                 window.dispatchEvent(new CustomEvent('businessInfoUpdated'));
             }
         }
